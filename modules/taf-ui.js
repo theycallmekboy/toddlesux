@@ -20,7 +20,7 @@ TAF.UI = (function() {
 
 - For multiple‑choice questions, just write the correct option text.
 - For questions with **multiple blanks**, separate each answer with a pipe symbol (|) with spaces around it.
-  Example: Q3: Treaty of Versailles | hyperinflation | worthless
+  Example: Q3: Britain | France | Russia
 
 - If a question has the same answer repeated, just repeat the text.
 - Provide ONLY the Q&A lines, one per line, no extra commentary.`;
@@ -105,8 +105,8 @@ TAF.UI = (function() {
     const row = document.createElement('div');
     row.className = 'taf-row';
     row.innerHTML = `
-      <input class="taf-key" placeholder="q1 / keyword" value="${TAF.Utils.escHtml(key)}">
-      <input class="taf-val" placeholder="answer (use | for blanks)" value="${TAF.Utils.escHtml(value)}">
+      <input class="taf-key" placeholder="q1" value="${TAF.Utils.escHtml(key)}">
+      <input class="taf-val" placeholder="answer" value="${TAF.Utils.escHtml(value)}">
       <button class="taf-del" title="Remove">×</button>
     `;
     row.querySelector('.taf-del').addEventListener('click', () => row.remove());
@@ -153,13 +153,13 @@ TAF.UI = (function() {
           </div>
         </div>
         <div id="taf-body">
-          <div class="taf-section-label">Answers (use | for blanks)</div>
+          <div class="taf-section-label">Answers</div>
           <div id="taf-entries"></div>
           <button class="taf-btn" id="taf-btn-add">+ add answer row</button>
 
           <div class="taf-section-label">Bulk Import</div>
           <div id="taf-bulk-area">
-            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs like:&#10;Q1: Britain, France, Russia&#10;Q2: Agreements to support...&#10;Q3: Treaty of Versailles | hyperinflation | worthless"></textarea>
+            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs like:&#10;Q1: Britain, France, Russia&#10;Q2: Agreements to support...&#10;Q3: Britain | France | Russia"></textarea>
             <div class="taf-bulk-buttons">
               <button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>
               <button class="taf-btn" id="taf-bulk-clear">Clear All</button>
@@ -176,7 +176,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.0 · theycallmekboy</div>
+        <div id="taf-footer">toddlesux v4.0 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
