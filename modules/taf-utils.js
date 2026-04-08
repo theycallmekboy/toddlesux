@@ -1,5 +1,5 @@
 // modules/taf-utils.js
-// toddlesux - Utility functions
+// toddlesux - Utility functions with OpenAI API
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -7,14 +7,8 @@ window.TAF = window.TAF || {};
 TAF.Utils = (function() {
   'use strict';
 
-  // ─────────────────────────────────────────────────────────────
-  //  Sleep / delay
-  // ─────────────────────────────────────────────────────────────
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // ─────────────────────────────────────────────────────────────
-  //  Escape HTML (for log messages)
-  // ─────────────────────────────────────────────────────────────
   const escHtml = (s) => String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -22,9 +16,6 @@ TAF.Utils = (function() {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  // ─────────────────────────────────────────────────────────────
-  //  Logging to the sidebar panel
-  // ─────────────────────────────────────────────────────────────
   const log = (msg, type = 'info') => {
     const el = document.getElementById('taf-log');
     if (!el) return;
@@ -39,15 +30,9 @@ TAF.Utils = (function() {
 
   const clearLog = () => {
     const el = document.getElementById('taf-log');
-    if (el) {
-      el.innerHTML = '';
-      el.classList.remove('visible');
-    }
+    if (el) { el.innerHTML = ''; el.classList.remove('visible'); }
   };
 
-  // ─────────────────────────────────────────────────────────────
-  //  Status badge
-  // ─────────────────────────────────────────────────────────────
   const setStatus = (text, active = true) => {
     const badge = document.getElementById('taf-status-badge');
     if (!badge) return;
@@ -55,39 +40,26 @@ TAF.Utils = (function() {
     badge.className = active ? '' : 'inactive';
   };
 
-  // ─────────────────────────────────────────────────────────────
-  //  Highlight element (visual feedback)
-  // ─────────────────────────────────────────────────────────────
   const highlight = (el) => {
     if (!el) return;
     el.classList.add('taf-filled-ok');
     setTimeout(() => el.classList.remove('taf-filled-ok'), 2500);
   };
 
-  // ─────────────────────────────────────────────────────────────
-  //  React‑safe value setter (bypasses React's synthetic events)
-  // ─────────────────────────────────────────────────────────────
   const setNativeValue = (element, value) => {
     const proto = element.tagName === 'TEXTAREA'
       ? window.HTMLTextAreaElement.prototype
       : window.HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-    if (setter) {
-      setter.call(element, value);
-    } else {
-      element.value = value;
-    }
+    if (setter) setter.call(element, value);
+    else element.value = value;
   };
 
-  // ─────────────────────────────────────────────────────────────
-  //  Clipboard write with fallback
-  // ─────────────────────────────────────────────────────────────
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
       return true;
     } catch (err) {
-      // Fallback for older browsers
       const textarea = document.createElement('textarea');
       textarea.value = text;
       document.body.appendChild(textarea);
@@ -98,9 +70,69 @@ TAF.Utils = (function() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
-  //  Public API
-  // ─────────────────────────────────────────────────────────────
+  // OpenAI API call
+  const callOpenAI = async (questionsText, onChunk) => {
+    const apiKey = TAF.Settings.get('openaiApiKey');
+    if (!apiKey) {
+      log('❌ OpenAI API key not set. Add it in Settings → General.', 'err');
+      return null;
+    }
+
+    const prompt = `${TAF.Settings.get('aiPrompt')}\n\nQuestions:\n${questionsText}\n\nProvide ONLY the answers:`;
+    const model = TAF.Settings.get('aiModel');
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          stream: !!onChunk
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || 'API error');
+      }
+
+      if (onChunk) {
+        // Streaming
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+          for (const line of lines) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices[0]?.delta?.content || '';
+              fullText += content;
+              onChunk(content, fullText);
+            } catch (e) {}
+          }
+        }
+        return fullText;
+      } else {
+        const data = await response.json();
+        return data.choices[0].message.content;
+      }
+    } catch (err) {
+      log(`❌ OpenAI error: ${err.message}`, 'err');
+      return null;
+    }
+  };
+
   return {
     sleep,
     escHtml,
@@ -109,7 +141,7 @@ TAF.Utils = (function() {
     setStatus,
     highlight,
     setNativeValue,
-    copyToClipboard
+    copyToClipboard,
+    callOpenAI
   };
-
 })();
