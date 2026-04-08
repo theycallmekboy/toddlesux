@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      0.0.1
+// @version      4.3
 // @description  Auto-fills Toddle forms with human-like delays, sub-question support, settings & emergency hide
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
@@ -21,29 +21,29 @@
 (function() {
   'use strict';
 
-  // Emergency hide: F1 toggles visibility
+  // Dynamic hotkey toggle (uses saved setting, defaults to 'Delete')
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'F1') {
+    if (!window.TAF || !TAF.Settings) return;
+    const hotkey = TAF.Settings.get('hotkey') || 'Delete';
+    // Normalize case and handle special keys like 'Delete', 'Escape', 'F1', etc.
+    if (e.key === hotkey || e.code === hotkey || e.key.toLowerCase() === hotkey.toLowerCase()) {
       e.preventDefault();
       const root = document.getElementById('taf-root');
       if (root) {
         root.classList.toggle('taf-emergency-hidden');
-        if (window.TAF && TAF.Utils) {
-          TAF.Utils.log(root.classList.contains('taf-emergency-hidden') ? 'Panel hidden (F1 to show)' : 'Panel shown', 'info');
+        if (TAF.Utils) {
+          TAF.Utils.log(root.classList.contains('taf-emergency-hidden') ? 'Panel hidden (press ' + hotkey + ' to show)' : 'Panel shown', 'info');
         }
       }
     }
   });
 
-  // Wait for all modules to load and DOM to be ready
   function init() {
     if (typeof window.TAF === 'undefined' || !TAF.UI) {
       console.error('[toddlesux] Modules not loaded. Check @require paths.');
       return;
     }
-
     TAF.UI.buildSidebar();
-
     setTimeout(() => {
       const root = document.getElementById('taf-root');
       if (root) root.classList.remove('taf-hidden');
@@ -55,5 +55,4 @@
   } else {
     init();
   }
-
 })();
