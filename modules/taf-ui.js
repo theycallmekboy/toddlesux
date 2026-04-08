@@ -14,11 +14,98 @@ TAF.UI = (function() {
 
   const PRESET_ANSWERS = {};
 
-  function parseBulkImport(textarea, entriesContainer) { /* unchanged */ }
+  function parseBulkImport(textarea, entriesContainer) {
+    const raw = textarea.value.trim();
+    if (!raw) {
+      log('Paste some Q&A pairs first.', 'warn');
+      return;
+    }
 
-  function addAnswerRow(container, key = '', value = '') { /* unchanged */ }
+    const lines = raw.split('\n');
+    const parsed = [];
 
-  function getAnswersFromUI(container) { /* unchanged */ }
+    const patterns = [
+      /^(?:Q(?:uestion)?\s*)?(\d+(?:\.\d+)?)[:.)]\s*(.+)$/i,
+      /^(\d+(?:\.\d+)?)\s*[-–—]\s*(.+)$/,
+      /^(\d+(?:\.\d+)?)\s+(.+)$/
+    ];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let matched = false;
+      for (const regex of patterns) {
+        const m = trimmed.match(regex);
+        if (m) {
+          const num = m[1];
+          const answer = m[2].trim();
+          if (num && answer) {
+            parsed.push({ key: `q${num}`, val: answer });
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) {
+        const colonIdx = trimmed.indexOf(':');
+        if (colonIdx > 0) {
+          const keyword = trimmed.slice(0, colonIdx).trim();
+          const answer = trimmed.slice(colonIdx + 1).trim();
+          if (keyword && answer) {
+            parsed.push({ key: keyword, val: answer });
+            matched = true;
+          }
+        }
+      }
+      if (!matched) {
+        log(`Skipped line: "${trimmed.slice(0, 40)}"`, 'warn');
+      }
+    }
+
+    if (parsed.length === 0) {
+      log('No valid Q&A pairs found. Use format "Q1: answer" or "1. answer".', 'warn');
+      return;
+    }
+
+    entriesContainer.innerHTML = '';
+    let added = 0;
+    for (const item of parsed) {
+      addAnswerRow(entriesContainer, item.key, item.val);
+      added++;
+    }
+
+    log(`✅ Imported ${added} answer(s).`, 'ok');
+    setStatus(`${added} LOADED`, true);
+    textarea.value = '';
+  }
+
+  function addAnswerRow(container, key = '', value = '') {
+    const row = document.createElement('div');
+    row.className = 'taf-row';
+    row.innerHTML = `
+      <input class="taf-key" placeholder="q1 / keyword" value="${escHtml(key)}">
+      <input class="taf-val" placeholder="answer (use | for blanks)" value="${escHtml(value)}">
+      <button class="taf-del" title="Remove">×</button>
+    `;
+    row.querySelector('.taf-del').addEventListener('click', () => row.remove());
+    container.appendChild(row);
+  }
+
+  function getAnswersFromUI(container) {
+    const map = {};
+    container.querySelectorAll('.taf-row').forEach(row => {
+      const keyInput = row.querySelector('.taf-key');
+      const valInput = row.querySelector('.taf-val');
+      if (!keyInput || !valInput) return;
+      const k = keyInput.value.trim().toLowerCase();
+      const v = valInput.value.trim();
+      if (k && v) {
+        map[k] = v.split('|').map(s => s.trim()).filter(s => s !== '');
+      }
+    });
+    return map;
+  }
 
   function buildSidebar() {
     const root = document.createElement('div');
@@ -67,12 +154,12 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.0 · theycallmekboy</div>
+        <div id="taf-footer">toddlesux v4.1 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
 
-    // Settings modal
+    // Settings modal (unchanged but ensure it includes all new settings)
     const modal = document.createElement('div');
     modal.id = 'taf-settings-modal';
     modal.className = 'hidden';
@@ -144,7 +231,7 @@ TAF.UI = (function() {
     `;
     document.body.appendChild(modal);
 
-    // Get elements
+    // Elements
     const tab = root.querySelector('#taf-tab');
     const entries = root.querySelector('#taf-entries');
     const btnAdd = root.querySelector('#taf-btn-add');
@@ -177,7 +264,7 @@ TAF.UI = (function() {
       addAnswerRow(entries);
     }
 
-    // Event listeners (same as before, with additions for new settings)
+    // Event listeners
     tab.addEventListener('click', () => root.classList.toggle('taf-hidden'));
     btnAdd.addEventListener('click', () => addAnswerRow(entries));
     btnScan.addEventListener('click', Scanner.scanPage);
@@ -222,7 +309,6 @@ TAF.UI = (function() {
       Settings.set('showLogPanel', showLogCheck.checked);
       Settings.set('aiPrompt', aiPromptTextarea.value);
 
-      // Apply visibility changes
       document.getElementById('taf-answer-section').style.display = showAnswersCheck.checked ? 'block' : 'none';
       document.getElementById('taf-log').style.display = showLogCheck.checked ? 'block' : 'none';
 
