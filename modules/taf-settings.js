@@ -24,11 +24,12 @@ TAF.Settings = (function() {
     showAnswerRows: true,
     showLogPanel: true,
     hotkey: 'Delete',
+    reloadOnSave: false, // new: don't reload after saving settings
 
     // Theme (Apple dark by default)
-    accentColor: '#f5a623',      // orange
-    backgroundColor: '#000000',  // true black
-    blurIntensity: 20,           // px
+    accentColor: '#f5a623',
+    backgroundColor: '#000000',
+    blurIntensity: 20,
 
     // Button visibility
     showParseAdd: true,
@@ -70,7 +71,6 @@ TAF.Settings = (function() {
 
   load();
 
-  // Apply theme to document root
   function applyTheme() {
     const root = document.documentElement;
     root.style.setProperty('--taf-accent', settings.accentColor);
@@ -78,7 +78,6 @@ TAF.Settings = (function() {
     root.style.setProperty('--taf-blur', settings.blurIntensity + 'px');
   }
 
-  // Call after load and on change
   applyTheme();
 
   return { get, set, reset, getAll, DEFAULTS, load, save, applyTheme };
