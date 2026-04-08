@@ -132,16 +132,19 @@ TAF.UI = (function() {
           </div>
 
           <div class="taf-section-label">Bulk Import</div>
-          <div class="taf-bulk-buttons">
-            <button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>
-            <button class="taf-btn" id="taf-bulk-clear">Clear All</button>
-            <button class="taf-btn" id="taf-paste-answers">📋 Paste</button>
-            <button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>
-            <button class="taf-btn" id="taf-copy-questions">📄 Copy Questions</button>
-          </div>
-          <div class="taf-bulk-buttons" style="margin-top:6px;">
-            <button class="taf-btn" id="taf-clear-highlights">✨ Clear Highlights</button>
-            <button class="taf-btn" id="taf-clear-all-answers">🧹 Clear All Answers</button>
+          <div id="taf-bulk-area">
+            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs like:&#10;Q1: Britain, France, Russia&#10;Q2: Agreements to support...&#10;Q3: Treaty of Versailles | hyperinflation | worthless"></textarea>
+            <div class="taf-bulk-buttons">
+              <button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>
+              <button class="taf-btn" id="taf-bulk-clear">Clear All</button>
+              <button class="taf-btn" id="taf-paste-answers">📋 Paste</button>
+              <button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>
+              <button class="taf-btn" id="taf-copy-questions">📄 Copy Questions</button>
+            </div>
+            <div class="taf-bulk-buttons" style="margin-top:6px;">
+              <button class="taf-btn" id="taf-clear-highlights">✨ Clear Highlights</button>
+              <button class="taf-btn" id="taf-clear-all-answers">🧹 Clear All Answers</button>
+            </div>
           </div>
 
           <div class="taf-btn-row">
@@ -152,7 +155,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.2 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.4 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -191,8 +194,6 @@ TAF.UI = (function() {
 
     // Settings modal
     const modal = document.createElement('div');
-    const btnClearHighlights = root.querySelector('#taf-clear-highlights');
-    const btnClearAllAnswers = root.querySelector('#taf-clear-all-answers');
     modal.id = 'taf-settings-modal';
     modal.className = 'hidden';
     modal.innerHTML = `
@@ -282,6 +283,8 @@ TAF.UI = (function() {
     const btnPaste = root.querySelector('#taf-paste-answers');
     const btnCopyPrompt = root.querySelector('#taf-copy-prompt');
     const btnCopyQuestions = root.querySelector('#taf-copy-questions');
+    const btnClearHighlights = root.querySelector('#taf-clear-highlights');
+    const btnClearAllAnswers = root.querySelector('#taf-clear-all-answers');
     const settingsBtn = root.querySelector('#taf-settings-btn');
     const modalClose = modal.querySelectorAll('.taf-modal-close');
     const btnSaveSettings = modal.querySelector('#taf-save-settings');
@@ -362,6 +365,40 @@ TAF.UI = (function() {
     });
     btnCopyQuestions.addEventListener('click', Scanner.copyAllQuestions);
 
+    btnClearHighlights.addEventListener('click', () => {
+      document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
+      log('✨ Highlights cleared', 'info');
+    });
+
+    btnClearAllAnswers.addEventListener('click', () => {
+      // Uncheck all radio/checkboxes
+      document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(input => {
+        if (input.checked) {
+          input.checked = false;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      // Clear all text inputs and textareas
+      document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(input => {
+        if (input.value) {
+          TAF.Utils.setNativeValue(input, '');
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      // Clear contenteditable
+      document.querySelectorAll('[contenteditable="true"]').forEach(el => {
+        el.innerHTML = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      // Reset select dropdowns to first option
+      document.querySelectorAll('select').forEach(sel => {
+        sel.selectedIndex = 0;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      log('🧹 All answers cleared', 'ok');
+    });
+
     settingsBtn.addEventListener('click', () => modal.classList.remove('hidden'));
     modalClose.forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
 
@@ -395,41 +432,6 @@ TAF.UI = (function() {
 
       modal.classList.add('hidden');
       log('Settings saved. New hotkey: ' + Settings.get('hotkey'), 'ok');
-    });
-
-
-    btnClearHighlights.addEventListener('click', () => {
-      document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
-      log('✨ Highlights cleared', 'info');
-    });
-
-    btnClearAllAnswers.addEventListener('click', () => {
-      // Uncheck all radio/checkboxes
-      document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(input => {
-        if (input.checked) {
-          input.checked = false;
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-      // Clear all text inputs and textareas
-      document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(input => {
-        if (input.value) {
-          TAF.Utils.setNativeValue(input, '');
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-      // Clear contenteditable
-      document.querySelectorAll('[contenteditable="true"]').forEach(el => {
-        el.innerHTML = '';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-      // Reset select dropdowns to first option
-      document.querySelectorAll('select').forEach(sel => {
-        sel.selectedIndex = 0;
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-      log('🧹 All answers cleared', 'ok');
     });
   }
 
