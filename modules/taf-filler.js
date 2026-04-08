@@ -23,16 +23,57 @@ TAF.Filler = (function() {
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  Simulate human typing (occasional backspace)
+  //  Type text character by character with delay
+  // ─────────────────────────────────────────────────────────────
+  async function typeCharByChar(inputElement, text) {
+    const delay = Settings.get('charTypingDelay') || 50;
+    let current = '';
+    for (let i = 0; i < text.length; i++) {
+      current += text[i];
+      setNativeValue(inputElement, current);
+      inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(delay);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Simulate human typing (supports char‑by‑char and mistakes)
   // ─────────────────────────────────────────────────────────────
   async function simulateHumanTyping(inputElement, text) {
-    if (!Settings.get('enableHumanTyping')) {
+    const useHumanSim = Settings.get('enableHumanTyping');
+    const useCharTyping = Settings.get('enableCharTyping');
+
+    // If both disabled, just set instantly
+    if (!useHumanSim && !useCharTyping) {
       setNativeValue(inputElement, text);
       inputElement.dispatchEvent(new Event('input', { bubbles: true }));
       return;
     }
 
-    // Chance to simulate backspace
+    // Character‑by‑character typing
+    if (useCharTyping) {
+      await typeCharByChar(inputElement, text);
+
+      // Optionally layer human mistake on top
+      if (useHumanSim && Math.random() < Settings.get('humanTypingChance')) {
+        const backCount = Math.floor(Math.random() * 3) + 1; // backspace 1–3 chars
+        const partial = text.slice(0, -backCount);
+        setNativeValue(inputElement, partial);
+        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        await sleep(200 + Math.random() * 200);
+
+        // Retype the remaining characters
+        for (let i = partial.length; i < text.length; i++) {
+          const newVal = text.slice(0, i + 1);
+          setNativeValue(inputElement, newVal);
+          inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+          await sleep(Settings.get('charTypingDelay'));
+        }
+      }
+      return;
+    }
+
+    // Human mistake simulation without char‑typing (original behavior)
     if (Math.random() < Settings.get('humanTypingChance')) {
       const partialLength = Math.floor(text.length * 0.6);
       const partial = text.substring(0, partialLength);
@@ -74,6 +115,7 @@ TAF.Filler = (function() {
           else item.click();
           highlight(item);
           log(`Multiple‑choice → "${firstAns}" (${label.slice(0,30)})`, 'ok');
+          await sleep(Settings.get('questionDelay') || 0);
           return true;
         }
       }
@@ -89,6 +131,7 @@ TAF.Filler = (function() {
         r.dispatchEvent(new Event('change', { bubbles: true }));
         highlight(labelEl || r);
         log(`Radio/Check → "${firstAns}" (${label.slice(0,30)})`, 'ok');
+        await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
     }
@@ -105,6 +148,7 @@ TAF.Filler = (function() {
         pill.click();
         highlight(pill);
         log(`Option → "${firstAns}" (${label.slice(0,30)})`, 'ok');
+        await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
     }
@@ -121,6 +165,7 @@ TAF.Filler = (function() {
         sel.dispatchEvent(new Event('input',  { bubbles: true }));
         highlight(sel);
         log(`Dropdown → "${match.text}" (${label.slice(0,30)})`, 'ok');
+        await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
     }
@@ -142,6 +187,7 @@ TAF.Filler = (function() {
         }
         log(`Dropdown opened but "${firstAns}" not found.`, 'warn');
       }, 450);
+      await sleep(Settings.get('questionDelay') || 0);
       return true;
     }
 
@@ -173,6 +219,7 @@ TAF.Filler = (function() {
       }
       if (filledCount > 0) {
         log(`Text fills → ${filledCount} blank(s) (${label.slice(0,30)})`, 'ok');
+        await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
     }
