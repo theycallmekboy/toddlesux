@@ -1,5 +1,5 @@
 // modules/taf-settings.js
-// toddlesux - Settings management with theming
+// toddlesux - Settings management with theming and OpenAI
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -24,9 +24,8 @@ TAF.Settings = (function() {
     showAnswerRows: true,
     showLogPanel: true,
     hotkey: 'Delete',
-    reloadOnSave: false, // new: don't reload after saving settings
 
-    // Theme (Apple dark by default)
+    // Theme
     accentColor: '#f5a623',
     backgroundColor: '#000000',
     blurIntensity: 20,
@@ -39,6 +38,10 @@ TAF.Settings = (function() {
     showCopyQuestions: true,
     showClearHighlights: true,
     showClearAllAnswers: true,
+
+    // OpenAI (optional)
+    openaiApiKey: '',
+    aiModel: 'gpt-4o-mini',
 
     // AI Prompt
     aiPrompt: `Format your answers exactly like this for toddlesux:
