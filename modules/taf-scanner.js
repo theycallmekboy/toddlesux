@@ -13,18 +13,30 @@ TAF.Scanner = (function() {
   const OPTION_ITEM_SELECTOR = '[class*="OptionsList__itemContainer"]';
 
   function findQuestionBlocks() {
-    // Use only the main container selector to avoid duplicates
-    const elements = document.querySelectorAll(QUESTION_SELECTOR);
-    // Also include any with data-test-id that might be sub-questions
+    // Use only the main container selector, plus data-test-id for sub-questions
+    const mainCards = document.querySelectorAll(QUESTION_SELECTOR);
     const subCards = document.querySelectorAll('[data-test-id*="worksheet-question-questionCard"]');
     
-    // Combine and deduplicate using a Set (by element reference)
-    const uniqueElements = [...new Set([...elements, ...subCards])];
+    // Combine, but filter to only those that contain actual interactive elements
+    const allCards = [...mainCards, ...subCards];
+    const seen = new Set();
+    const uniqueCards = [];
     
-    // Filter to only blocks that contain actual form elements
-    return uniqueElements.filter(el =>
-      el.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"], ' + OPTIONS_CONTAINER_SELECTOR)
-    );
+    for (const card of allCards) {
+      // Skip if we've already processed this exact DOM element
+      if (seen.has(card)) continue;
+      seen.add(card);
+      
+      // Must contain form elements or options container
+      const hasFormElements = card.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"]');
+      const hasOptions = card.querySelector(OPTIONS_CONTAINER_SELECTOR);
+      
+      if (hasFormElements || hasOptions) {
+        uniqueCards.push(card);
+      }
+    }
+    
+    return uniqueCards;
   }
 
   function getQuestionLabel(block) {
