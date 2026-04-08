@@ -1,5 +1,5 @@
 // modules/taf-styles.js
-// toddlesux - Apple-inspired true black theme with CSS variables
+// toddlesux - Apple-inspired true black theme with ChatGPT panel
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -291,6 +291,43 @@ TAF.Styles = (function() {
         border-radius: 8px;
       }
 
+      /* ChatGPT Panel */
+      #taf-chatgpt-section {
+        margin-top: 16px;
+        border-top: 0.5px solid rgba(255,255,255,0.05);
+        padding-top: 12px;
+      }
+      #taf-chatgpt-questions {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.03);
+        border: 0.5px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        color: #fff;
+        font-size: 11px;
+        padding: 10px;
+        resize: vertical;
+        min-height: 100px;
+        margin-bottom: 8px;
+      }
+      #taf-chatgpt-output {
+        width: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        border: 0.5px solid rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        color: #ddd;
+        font-size: 11px;
+        padding: 10px;
+        min-height: 80px;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        margin-bottom: 8px;
+      }
+      .taf-chatgpt-buttons {
+        display: flex;
+        gap: 6px;
+      }
+
       /* Settings Modal */
       #taf-settings-modal {
         position: fixed;
@@ -308,15 +345,15 @@ TAF.Styles = (function() {
         backdrop-filter: blur(30px);
         border: 0.5px solid rgba(255,255,255,0.08);
         border-radius: 28px;
-        width: 420px;
+        width: 520px;
         max-width: 90vw;
         padding: 24px;
         box-shadow: 0 30px 50px rgba(0,0,0,0.8);
         position: relative;
         overflow: auto;
         resize: both;
-        min-width: 360px;
-        min-height: 400px;
+        min-width: 420px;
+        min-height: 500px;
       }
       .taf-modal-resize-handle {
         position: absolute;
@@ -378,7 +415,8 @@ TAF.Styles = (function() {
         accent-color: var(--taf-accent);
       }
       .taf-setting-item input[type="number"],
-      .taf-setting-item input[type="text"] {
+      .taf-setting-item input[type="text"],
+      .taf-setting-item input[type="password"] {
         background: rgba(255,255,255,0.05);
         border: 0.5px solid rgba(255,255,255,0.1);
         border-radius: 10px;
