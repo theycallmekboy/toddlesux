@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with dynamic settings, close button, and accent consistency
+// toddlesux - Apple-inspired UI with dynamic settings, close button, and disabled buttons tab
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -14,6 +14,17 @@ TAF.UI = (function() {
 
   const PRESET_ANSWERS = {};
   const TUTORIAL_SHOWN_KEY = 'taf_tutorial_shown';
+
+  // Button config for the Disabled tab
+  const BUTTON_CONFIG = [
+    { id: 'showParseAdd', label: 'Parse & Add' },
+    { id: 'showClearAll', label: 'Clear All' },
+    { id: 'showPaste', label: 'Paste' },
+    { id: 'showAiPrompt', label: 'AI Prompt' },
+    { id: 'showCopyQuestions', label: 'Copy Questions' },
+    { id: 'showClearHighlights', label: 'Clear Highlights' },
+    { id: 'showClearAllAnswers', label: 'Clear All Answers' }
+  ];
 
   // Rebuild the bulk button rows based on current settings
   function rebuildBulkButtons(root) {
@@ -36,6 +47,44 @@ TAF.UI = (function() {
     row2.innerHTML = buttons2.join('');
 
     attachBulkButtonListeners(root);
+  }
+
+  // Refresh the Disabled tab content
+  function refreshDisabledTab(modal) {
+    const container = modal.querySelector('#taf-disabled-buttons-list');
+    if (!container) return;
+
+    const disabledButtons = BUTTON_CONFIG.filter(cfg => !Settings.get(cfg.id));
+    
+    if (disabledButtons.length === 0) {
+      container.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">All buttons are enabled ✨</p>';
+      return;
+    }
+
+    let html = '';
+    disabledButtons.forEach(cfg => {
+      html += `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:12px;">
+          <span style="color:#ddd;">${cfg.label}</span>
+          <button class="taf-btn" data-enable="${cfg.id}" style="padding:4px 12px; flex:0;">Enable</button>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+
+    // Attach enable handlers
+    container.querySelectorAll('[data-enable]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.enable;
+        Settings.set(id, true);
+        // Update the corresponding checkbox in the Buttons tab
+        const chk = modal.querySelector(`#taf-${id.replace('show', 'show-').replace(/([A-Z])/g, '-$1').toLowerCase()}`);
+        if (chk) chk.checked = true;
+        refreshDisabledTab(modal);
+        rebuildBulkButtons(document.getElementById('taf-root'));
+        log(`✅ ${btn.closest('div').querySelector('span').textContent} enabled.`, 'ok');
+      });
+    });
   }
 
   // Attach event listeners to bulk buttons
@@ -108,7 +157,6 @@ TAF.UI = (function() {
     }
   }
 
-  // Handler references for removal
   function parseBulkImportHandler() {}
   function clearEntriesHandler() {}
   function pasteHandler() {}
@@ -251,7 +299,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.7 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.8 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -309,7 +357,7 @@ TAF.UI = (function() {
     });
     window.addEventListener('mouseup', () => { isDragging = false; root.style.transition = ''; });
 
-    // Settings modal with tabs
+    // Settings modal with tabs (now includes "Disabled" tab)
     const modal = document.createElement('div');
     modal.id = 'taf-settings-modal';
     modal.className = 'hidden';
@@ -320,6 +368,7 @@ TAF.UI = (function() {
           <button class="taf-tab-btn" data-tab="humanize">Humanize</button>
           <button class="taf-tab-btn" data-tab="appearance">Appearance</button>
           <button class="taf-tab-btn" data-tab="buttons">Buttons</button>
+          <button class="taf-tab-btn" data-tab="disabled">Disabled</button>
           <button class="taf-modal-close" style="margin-left:auto; background:none; border:none; color:#888; font-size:20px; cursor:pointer;">&times;</button>
         </div>
         
@@ -408,12 +457,21 @@ TAF.UI = (function() {
           <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-clearAllAnswers" ${Settings.get('showClearAllAnswers') ? 'checked' : ''}> Clear All Answers</label></div>
         </div>
 
+        <!-- Disabled Tab (lists hidden buttons with Enable option) -->
+        <div class="taf-tab-pane" data-tab="disabled">
+          <p style="color:#aaa; font-size:12px; margin-bottom:16px;">Hidden buttons – click Enable to show them.</p>
+          <div id="taf-disabled-buttons-list"></div>
+        </div>
+
         <div class="taf-modal-footer" style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
           <button class="taf-btn" id="taf-save-settings">Save</button>
         </div>
       </div>
     `;
     document.body.appendChild(modal);
+
+    // Refresh disabled tab on modal open
+    refreshDisabledTab(modal);
 
     // Tab switching
     const tabBtns = modal.querySelectorAll('.taf-tab-btn');
@@ -425,6 +483,7 @@ TAF.UI = (function() {
         panes.forEach(p => p.classList.remove('active'));
         btn.classList.add('active');
         modal.querySelector(`.taf-tab-pane[data-tab="${tab}"]`).classList.add('active');
+        if (tab === 'disabled') refreshDisabledTab(modal);
       });
     });
 
@@ -488,7 +547,7 @@ TAF.UI = (function() {
     const charDelay = modal.querySelector('#taf-setting-charDelay');
     charCheck.addEventListener('change', () => charDelay.disabled = !charCheck.checked);
 
-    // Save settings - fully dynamic, no reload
+    // Save settings - fully dynamic
     btnSaveSettings.addEventListener('click', () => {
       Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
       Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
@@ -518,13 +577,11 @@ TAF.UI = (function() {
 
       Settings.applyTheme();
 
-      // Apply dynamic UI updates
       document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
       document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
       
-      // Rebuild buttons to reflect new visibility settings
       rebuildBulkButtons(root);
-
+      refreshDisabledTab(modal);
       modal.classList.add('hidden');
       log('✅ Settings saved and applied.', 'ok');
     });
