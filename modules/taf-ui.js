@@ -249,6 +249,14 @@ TAF.UI = (function() {
           </label>
         </div>
         <div class="taf-setting-item">
+          <label style="display:block; margin-bottom:6px;">Hotkey (toggle panel)</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="taf-setting-hotkey" value="${escHtml(Settings.get('hotkey'))}" style="flex:1; background:rgba(0,0,0,0.3); border:0.5px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; padding:6px 10px;" readonly>
+            <button class="taf-btn" id="taf-capture-hotkey" style="flex:0;">Press a key</button>
+          </div>
+          <div style="font-size:10px; color:#888; margin-top:4px;">Click "Press a key" then press any key to set.</div>
+        </div>
+        <div class="taf-setting-item">
           <label style="display:block; margin-bottom:6px;">AI Prompt (used by 📋 AI Prompt button)</label>
           <textarea id="taf-setting-aiPrompt" style="width:100%; height:150px; background:#18182a; border:1px solid #2c2c42; color:#d8d8e8; font-size:10px; padding:6px; resize:vertical;">${escHtml(Settings.get('aiPrompt'))}</textarea>
         </div>
@@ -284,7 +292,32 @@ TAF.UI = (function() {
     const questionDelay = modal.querySelector('#taf-setting-questionDelay');
     const showAnswersCheck = modal.querySelector('#taf-setting-showAnswers');
     const showLogCheck = modal.querySelector('#taf-setting-showLog');
+    const hotkeyInput = modal.querySelector('#taf-setting-hotkey');
+    const captureBtn = modal.querySelector('#taf-capture-hotkey');
     const aiPromptTextarea = modal.querySelector('#taf-setting-aiPrompt');
+
+    // Hotkey capture
+    let capturing = false;
+    captureBtn.addEventListener('click', () => {
+      capturing = true;
+      hotkeyInput.value = 'Press any key...';
+      hotkeyInput.style.background = 'rgba(245,166,35,0.2)';
+    });
+
+    const keyHandler = (e) => {
+      if (!capturing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      hotkeyInput.value = key;
+      hotkeyInput.style.background = '';
+      capturing = false;
+    };
+
+    modal.addEventListener('keydown', keyHandler);
+    modal.addEventListener('keyup', (e) => {
+      if (capturing) e.preventDefault();
+    });
 
     // Initialize answer rows
     Object.entries(PRESET_ANSWERS).forEach(([k, v]) => addAnswerRow(entries, k, v));
@@ -351,13 +384,14 @@ TAF.UI = (function() {
       Settings.set('questionDelay', parseInt(questionDelay.value, 10) || 500);
       Settings.set('showAnswerRows', showAnswersCheck.checked);
       Settings.set('showLogPanel', showLogCheck.checked);
+      Settings.set('hotkey', hotkeyInput.value.trim() || 'Delete');
       Settings.set('aiPrompt', aiPromptTextarea.value);
 
       document.getElementById('taf-answer-section').style.display = showAnswersCheck.checked ? 'block' : 'none';
       document.getElementById('taf-log').style.display = showLogCheck.checked ? 'block' : 'none';
 
       modal.classList.add('hidden');
-      log('Settings saved.', 'ok');
+      log('Settings saved. New hotkey: ' + Settings.get('hotkey'), 'ok');
     });
   }
 
