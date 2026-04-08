@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Sidebar UI and interaction
+// toddlesux - Apple-inspired UI with theming and tabbed settings
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -115,6 +115,9 @@ TAF.UI = (function() {
     const showAnswerRows = Settings.get('showAnswerRows');
     const showLogPanel = Settings.get('showLogPanel');
 
+    // Apply theme on load
+    Settings.applyTheme();
+
     root.innerHTML = `
       <div id="taf-panel">
         <div id="taf-header">
@@ -126,151 +129,186 @@ TAF.UI = (function() {
         </div>
         <div id="taf-body">
           <div id="taf-answer-section" style="display: ${showAnswerRows ? 'block' : 'none'};">
-            <div class="taf-section-label">Answers (use | for blanks)</div>
+            <div class="taf-section-label">Answers</div>
             <div id="taf-entries"></div>
-            <button class="taf-btn" id="taf-btn-add">+ add answer row</button>
+            <button class="taf-btn" id="taf-btn-add">+ Add row</button>
           </div>
 
           <div class="taf-section-label">Bulk Import</div>
           <div id="taf-bulk-area">
-            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs like:&#10;Q1: Britain, France, Russia&#10;Q2: Agreements to support...&#10;Q3: Treaty of Versailles | hyperinflation | worthless"></textarea>
-            <div class="taf-bulk-buttons">
-              <button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>
-              <button class="taf-btn" id="taf-bulk-clear">Clear All</button>
-              <button class="taf-btn" id="taf-paste-answers">📋 Paste</button>
-              <button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>
-              <button class="taf-btn" id="taf-copy-questions">📄 Copy Questions</button>
-            </div>
-            <div class="taf-bulk-buttons" style="margin-top:6px;">
-              <button class="taf-btn" id="taf-clear-highlights">✨ Clear Highlights</button>
-              <button class="taf-btn" id="taf-clear-all-answers">🧹 Clear All Answers</button>
-            </div>
+            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs..."></textarea>
+            <div class="taf-bulk-buttons" id="taf-bulk-buttons-row1"></div>
+            <div class="taf-bulk-buttons" id="taf-bulk-buttons-row2" style="margin-top:6px;"></div>
           </div>
 
           <div class="taf-btn-row">
-            <button class="taf-btn" id="taf-btn-scan">⟳ scan page</button>
-            <button class="taf-btn" id="taf-btn-run">▶ fill now</button>
+            <button class="taf-btn" id="taf-btn-scan">⟳ Scan page</button>
+            <button class="taf-btn" id="taf-btn-run">▶ Fill now</button>
           </div>
 
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.4 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.5 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
 
+    // Populate bulk buttons based on settings
+    const row1 = root.querySelector('#taf-bulk-buttons-row1');
+    const row2 = root.querySelector('#taf-bulk-buttons-row2');
+    const buttons1 = [];
+    const buttons2 = [];
+
+    if (Settings.get('showParseAdd')) buttons1.push('<button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>');
+    if (Settings.get('showClearAll')) buttons1.push('<button class="taf-btn" id="taf-bulk-clear">Clear All</button>');
+    if (Settings.get('showPaste')) buttons1.push('<button class="taf-btn" id="taf-paste-answers">📋 Paste</button>');
+    if (Settings.get('showAiPrompt')) buttons1.push('<button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>');
+    if (Settings.get('showCopyQuestions')) buttons1.push('<button class="taf-btn" id="taf-copy-questions">📄 Copy Qs</button>');
+    if (Settings.get('showClearHighlights')) buttons2.push('<button class="taf-btn" id="taf-clear-highlights">✨ Clear Highlights</button>');
+    if (Settings.get('showClearAllAnswers')) buttons2.push('<button class="taf-btn" id="taf-clear-all-answers">🧹 Clear All Answers</button>');
+
+    row1.innerHTML = buttons1.join('');
+    row2.innerHTML = buttons2.join('');
+
     // Draggable header
     const header = root.querySelector('#taf-header');
-    let isDragging = false;
-    let startX, startY, startLeft, startTop;
-
+    let isDragging = false, startX, startY, startLeft, startTop;
     header.addEventListener('mousedown', (e) => {
       if (e.target.closest('button')) return;
       isDragging = true;
       const rect = root.getBoundingClientRect();
-      startX = e.clientX;
-      startY = e.clientY;
-      startLeft = rect.left;
-      startTop = rect.top;
+      startX = e.clientX; startY = e.clientY;
+      startLeft = rect.left; startTop = rect.top;
       root.style.transition = 'none';
-      root.style.right = 'auto';
-      root.style.transform = 'none';
+      root.style.right = 'auto'; root.style.transform = 'none';
       e.preventDefault();
     });
-
     window.addEventListener('mousemove', (e) => {
       if (!isDragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      root.style.left = (startLeft + dx) + 'px';
-      root.style.top = (startTop + dy) + 'px';
+      root.style.left = (startLeft + e.clientX - startX) + 'px';
+      root.style.top = (startTop + e.clientY - startY) + 'px';
     });
+    window.addEventListener('mouseup', () => { isDragging = false; root.style.transition = ''; });
 
-    window.addEventListener('mouseup', () => {
-      isDragging = false;
-      root.style.transition = '';
-    });
-
-    // Settings modal
+    // Settings modal with tabs
     const modal = document.createElement('div');
     modal.id = 'taf-settings-modal';
     modal.className = 'hidden';
     modal.innerHTML = `
       <div class="taf-modal-content">
         <div class="taf-modal-header">
-          <h3>⚙️ Settings</h3>
-          <button class="taf-modal-close">&times;</button>
+          <button class="taf-tab-btn active" data-tab="general">General</button>
+          <button class="taf-tab-btn" data-tab="humanize">Humanize</button>
+          <button class="taf-tab-btn" data-tab="appearance">Appearance</button>
+          <button class="taf-tab-btn" data-tab="buttons">Buttons</button>
+          <button class="taf-modal-close" style="margin-left:auto; background:none; border:none; color:#888; font-size:20px; cursor:pointer;">&times;</button>
         </div>
-        <div class="taf-setting-item">
-          <label>
-            <input type="checkbox" id="taf-setting-delay" ${Settings.get('enableRandomDelays') ? 'checked' : ''}>
-            Enable random delays between answers
-          </label>
-          <div class="taf-range-row">
-            <span style="color:#888;">Min (ms):</span>
-            <input type="number" id="taf-setting-minDelay" value="${Settings.get('minDelay')}" min="100" max="5000" step="50" ${!Settings.get('enableRandomDelays') ? 'disabled' : ''}>
-            <span style="color:#888; margin-left:8px;">Max:</span>
-            <input type="number" id="taf-setting-maxDelay" value="${Settings.get('maxDelay')}" min="100" max="5000" step="50" ${!Settings.get('enableRandomDelays') ? 'disabled' : ''}>
+        
+        <!-- General Tab -->
+        <div class="taf-tab-pane active" data-tab="general">
+          <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-showAnswers" ${Settings.get('showAnswerRows') ? 'checked' : ''}> Show answer rows</label>
+          </div>
+          <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-showLog" ${Settings.get('showLogPanel') ? 'checked' : ''}> Show log panel</label>
+          </div>
+          <div class="taf-setting-item">
+            <label>Hotkey (toggle panel)</label>
+            <div style="display:flex; gap:8px; margin-top:6px;">
+              <input type="text" id="taf-setting-hotkey" value="${escHtml(Settings.get('hotkey'))}" readonly style="flex:1; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
+              <button class="taf-btn" id="taf-capture-hotkey" style="flex:0;">Press key</button>
+            </div>
+          </div>
+          <div class="taf-setting-item">
+            <label>AI Prompt</label>
+            <textarea id="taf-setting-aiPrompt" style="width:100%; height:120px; margin-top:6px; background:rgba(255,255,255,0.03); border:0.5px solid rgba(255,255,255,0.08); border-radius:12px; color:#fff; padding:10px; font-size:11px; resize:vertical;">${escHtml(Settings.get('aiPrompt'))}</textarea>
           </div>
         </div>
-        <div class="taf-setting-item">
-          <label>
-            <input type="checkbox" id="taf-setting-human" ${Settings.get('enableHumanTyping') ? 'checked' : ''}>
-            Simulate human mistakes (backspace & retype)
-          </label>
-          <div class="taf-range-row">
-            <span style="color:#888;">Chance (0-1):</span>
-            <input type="number" id="taf-setting-humanChance" value="${Settings.get('humanTypingChance')}" min="0" max="1" step="0.05" ${!Settings.get('enableHumanTyping') ? 'disabled' : ''}>
+
+        <!-- Humanize Tab -->
+        <div class="taf-tab-pane" data-tab="humanize">
+          <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-delay" ${Settings.get('enableRandomDelays') ? 'checked' : ''}> Random delays</label>
+            <div class="taf-range-row" style="margin-top:8px; margin-left:24px;">
+              <span style="color:#888;">Min (ms):</span>
+              <input type="number" id="taf-setting-minDelay" value="${Settings.get('minDelay')}" min="100" max="5000" step="50" ${!Settings.get('enableRandomDelays') ? 'disabled' : ''} style="width:80px;">
+              <span style="color:#888; margin-left:8px;">Max:</span>
+              <input type="number" id="taf-setting-maxDelay" value="${Settings.get('maxDelay')}" min="100" max="5000" step="50" ${!Settings.get('enableRandomDelays') ? 'disabled' : ''} style="width:80px;">
+            </div>
+          </div>
+          <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-human" ${Settings.get('enableHumanTyping') ? 'checked' : ''}> Human mistakes</label>
+            <div class="taf-range-row" style="margin-top:8px; margin-left:24px;">
+              <span style="color:#888;">Chance (0-1):</span>
+              <input type="number" id="taf-setting-humanChance" value="${Settings.get('humanTypingChance')}" min="0" max="1" step="0.05" ${!Settings.get('enableHumanTyping') ? 'disabled' : ''} style="width:80px;">
+            </div>
+          </div>
+          <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-charTyping" ${Settings.get('enableCharTyping') ? 'checked' : ''}> Type character by character</label>
+            <div class="taf-range-row" style="margin-top:8px; margin-left:24px;">
+              <span style="color:#888;">Delay per char (ms):</span>
+              <input type="number" id="taf-setting-charDelay" value="${Settings.get('charTypingDelay')}" min="10" max="500" step="10" ${!Settings.get('enableCharTyping') ? 'disabled' : ''} style="width:80px;">
+            </div>
+          </div>
+          <div class="taf-setting-item">
+            <label style="justify-content: space-between;">Delay after question (ms):</label>
+            <input type="number" id="taf-setting-questionDelay" value="${Settings.get('questionDelay')}" min="0" max="5000" step="100" style="width:100px; margin-top:6px;">
           </div>
         </div>
-        <div class="taf-setting-item">
-          <label>
-            <input type="checkbox" id="taf-setting-charTyping" ${Settings.get('enableCharTyping') ? 'checked' : ''}>
-            Type characters one by one (realistic)
-          </label>
-          <div class="taf-range-row">
-            <span style="color:#888;">Delay per char (ms):</span>
-            <input type="number" id="taf-setting-charDelay" value="${Settings.get('charTypingDelay')}" min="10" max="500" step="10" ${!Settings.get('enableCharTyping') ? 'disabled' : ''}>
+
+        <!-- Appearance Tab -->
+        <div class="taf-tab-pane" data-tab="appearance">
+          <div class="taf-setting-item">
+            <label>Accent color</label>
+            <div class="taf-color-picker">
+              <input type="color" id="taf-setting-accentColor" value="${Settings.get('accentColor')}">
+              <span style="color:#aaa;">${Settings.get('accentColor')}</span>
+            </div>
+          </div>
+          <div class="taf-setting-item">
+            <label>Background color (true black recommended)</label>
+            <div class="taf-color-picker">
+              <input type="color" id="taf-setting-bgColor" value="${Settings.get('backgroundColor')}">
+              <span style="color:#aaa;">${Settings.get('backgroundColor')}</span>
+            </div>
+          </div>
+          <div class="taf-setting-item">
+            <label>Blur intensity (px)</label>
+            <input type="number" id="taf-setting-blur" value="${Settings.get('blurIntensity')}" min="0" max="50" step="2" style="width:80px;">
           </div>
         </div>
-        <div class="taf-setting-item">
-          <label style="justify-content: space-between;">
-            <span>Delay after question (ms):</span>
-            <input type="number" id="taf-setting-questionDelay" value="${Settings.get('questionDelay')}" min="0" max="5000" step="100" style="width:100px;">
-          </label>
+
+        <!-- Buttons Tab -->
+        <div class="taf-tab-pane" data-tab="buttons">
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-parseAdd" ${Settings.get('showParseAdd') ? 'checked' : ''}> Parse & Add</label></div>
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-clearAll" ${Settings.get('showClearAll') ? 'checked' : ''}> Clear All</label></div>
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-paste" ${Settings.get('showPaste') ? 'checked' : ''}> Paste</label></div>
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-aiPrompt" ${Settings.get('showAiPrompt') ? 'checked' : ''}> AI Prompt</label></div>
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-copyQuestions" ${Settings.get('showCopyQuestions') ? 'checked' : ''}> Copy Questions</label></div>
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-clearHighlights" ${Settings.get('showClearHighlights') ? 'checked' : ''}> Clear Highlights</label></div>
+          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-clearAllAnswers" ${Settings.get('showClearAllAnswers') ? 'checked' : ''}> Clear All Answers</label></div>
         </div>
-        <div class="taf-setting-item">
-          <label>
-            <input type="checkbox" id="taf-setting-showAnswers" ${Settings.get('showAnswerRows') ? 'checked' : ''}>
-            Show answer rows section
-          </label>
-        </div>
-        <div class="taf-setting-item">
-          <label>
-            <input type="checkbox" id="taf-setting-showLog" ${Settings.get('showLogPanel') ? 'checked' : ''}>
-            Show log panel
-          </label>
-        </div>
-        <div class="taf-setting-item">
-          <label style="display:block; margin-bottom:6px;">Hotkey (toggle panel)</label>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="taf-setting-hotkey" value="${escHtml(Settings.get('hotkey'))}" style="flex:1; background:rgba(0,0,0,0.3); border:0.5px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; padding:6px 10px;" readonly>
-            <button class="taf-btn" id="taf-capture-hotkey" style="flex:0;">Press a key</button>
-          </div>
-          <div style="font-size:10px; color:#888; margin-top:4px;">Click "Press a key" then press any key to set.</div>
-        </div>
-        <div class="taf-setting-item">
-          <label style="display:block; margin-bottom:6px;">AI Prompt (used by 📋 AI Prompt button)</label>
-          <textarea id="taf-setting-aiPrompt" style="width:100%; height:150px; background:#18182a; border:1px solid #2c2c42; color:#d8d8e8; font-size:10px; padding:6px; resize:vertical;">${escHtml(Settings.get('aiPrompt'))}</textarea>
-        </div>
-        <div class="taf-modal-footer">
-          <button class="taf-modal-close">Cancel</button>
-          <button class="primary" id="taf-save-settings">Save</button>
+
+        <div class="taf-modal-footer" style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+          <button class="taf-btn" id="taf-save-settings">Save</button>
         </div>
       </div>
     `;
     document.body.appendChild(modal);
+
+    // Tab switching
+    const tabBtns = modal.querySelectorAll('.taf-tab-btn');
+    const panes = modal.querySelectorAll('.taf-tab-pane');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        tabBtns.forEach(b => b.classList.remove('active'));
+        panes.forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        modal.querySelector(`.taf-tab-pane[data-tab="${tab}"]`).classList.add('active');
+      });
+    });
 
     // Elements
     const entries = root.querySelector('#taf-entries');
@@ -278,160 +316,113 @@ TAF.UI = (function() {
     const btnScan = root.querySelector('#taf-btn-scan');
     const btnRun = root.querySelector('#taf-btn-run');
     const bulkText = root.querySelector('#taf-bulk-text');
-    const btnParse = root.querySelector('#taf-bulk-parse');
-    const btnClear = root.querySelector('#taf-bulk-clear');
-    const btnPaste = root.querySelector('#taf-paste-answers');
-    const btnCopyPrompt = root.querySelector('#taf-copy-prompt');
-    const btnCopyQuestions = root.querySelector('#taf-copy-questions');
-    const btnClearHighlights = root.querySelector('#taf-clear-highlights');
-    const btnClearAllAnswers = root.querySelector('#taf-clear-all-answers');
     const settingsBtn = root.querySelector('#taf-settings-btn');
-    const modalClose = modal.querySelectorAll('.taf-modal-close');
     const btnSaveSettings = modal.querySelector('#taf-save-settings');
-    const delayCheck = modal.querySelector('#taf-setting-delay');
-    const minDelay = modal.querySelector('#taf-setting-minDelay');
-    const maxDelay = modal.querySelector('#taf-setting-maxDelay');
-    const humanCheck = modal.querySelector('#taf-setting-human');
-    const humanChance = modal.querySelector('#taf-setting-humanChance');
-    const charTypingCheck = modal.querySelector('#taf-setting-charTyping');
-    const charDelay = modal.querySelector('#taf-setting-charDelay');
-    const questionDelay = modal.querySelector('#taf-setting-questionDelay');
-    const showAnswersCheck = modal.querySelector('#taf-setting-showAnswers');
-    const showLogCheck = modal.querySelector('#taf-setting-showLog');
-    const hotkeyInput = modal.querySelector('#taf-setting-hotkey');
-    const captureBtn = modal.querySelector('#taf-capture-hotkey');
-    const aiPromptTextarea = modal.querySelector('#taf-setting-aiPrompt');
+    const modalClose = modal.querySelectorAll('.taf-modal-close');
+
+    // Dynamic buttons (may not exist)
+    const getBtn = (id) => root.querySelector(`#${id}`);
 
     // Hotkey capture
     let capturing = false;
+    const hotkeyInput = modal.querySelector('#taf-setting-hotkey');
+    const captureBtn = modal.querySelector('#taf-capture-hotkey');
     captureBtn.addEventListener('click', () => {
       capturing = true;
       hotkeyInput.value = 'Press any key...';
       hotkeyInput.style.background = 'rgba(245,166,35,0.2)';
     });
-
     const keyHandler = (e) => {
       if (!capturing) return;
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
       hotkeyInput.value = key;
       hotkeyInput.style.background = '';
       capturing = false;
     };
-
     modal.addEventListener('keydown', keyHandler);
-    modal.addEventListener('keyup', (e) => {
-      if (capturing) e.preventDefault();
-    });
 
     // Initialize answer rows
     Object.entries(PRESET_ANSWERS).forEach(([k, v]) => addAnswerRow(entries, k, v));
-    if (!Object.keys(PRESET_ANSWERS).length) {
-      addAnswerRow(entries);
-      addAnswerRow(entries);
-    }
+    if (!Object.keys(PRESET_ANSWERS).length) { addAnswerRow(entries); addAnswerRow(entries); }
 
     // Event listeners
     btnAdd.addEventListener('click', () => addAnswerRow(entries));
     btnScan.addEventListener('click', Scanner.scanPage);
     btnRun.addEventListener('click', () => {
-      if (Filler.isRunning()) {
-        Filler.stopFill();
-      } else {
-        const answers = getAnswersFromUI(entries);
-        Filler.runFill(answers);
-      }
-    });
-    btnParse.addEventListener('click', () => parseBulkImport(bulkText, entries));
-    btnClear.addEventListener('click', () => {
-      entries.innerHTML = '';
-      addAnswerRow(entries); addAnswerRow(entries);
-      clearLog();
-      log('Answer rows cleared.', 'info');
-    });
-    btnPaste.addEventListener('click', async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        bulkText.value = text;
-        log('✅ Pasted from clipboard', 'ok');
-      } catch (err) {
-        log('❌ Failed to read clipboard', 'err');
-      }
-    });
-    btnCopyPrompt.addEventListener('click', async () => {
-      const success = await copyToClipboard(Settings.get('aiPrompt'));
-      log(success ? '✅ AI prompt copied!' : '❌ Failed to copy', success ? 'ok' : 'err');
-    });
-    btnCopyQuestions.addEventListener('click', Scanner.copyAllQuestions);
-
-    btnClearHighlights.addEventListener('click', () => {
-      document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
-      log('✨ Highlights cleared', 'info');
+      if (Filler.isRunning()) Filler.stopFill();
+      else Filler.runFill(getAnswersFromUI(entries));
     });
 
-    btnClearAllAnswers.addEventListener('click', () => {
-      // Uncheck all radio/checkboxes
-      document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(input => {
-        if (input.checked) {
-          input.checked = false;
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-      // Clear all text inputs and textareas
-      document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(input => {
-        if (input.value) {
-          TAF.Utils.setNativeValue(input, '');
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      });
-      // Clear contenteditable
-      document.querySelectorAll('[contenteditable="true"]').forEach(el => {
-        el.innerHTML = '';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-      // Reset select dropdowns to first option
-      document.querySelectorAll('select').forEach(sel => {
-        sel.selectedIndex = 0;
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-      });
+    const parseBtn = getBtn('taf-bulk-parse');
+    if (parseBtn) parseBtn.addEventListener('click', () => parseBulkImport(bulkText, entries));
+    const clearBtn = getBtn('taf-bulk-clear');
+    if (clearBtn) clearBtn.addEventListener('click', () => { entries.innerHTML = ''; addAnswerRow(entries); addAnswerRow(entries); clearLog(); log('Cleared.', 'info'); });
+    const pasteBtn = getBtn('taf-paste-answers');
+    if (pasteBtn) pasteBtn.addEventListener('click', async () => { try { bulkText.value = await navigator.clipboard.readText(); log('✅ Pasted', 'ok'); } catch { log('❌ Failed', 'err'); } });
+    const promptBtn = getBtn('taf-copy-prompt');
+    if (promptBtn) promptBtn.addEventListener('click', async () => { const ok = await copyToClipboard(Settings.get('aiPrompt')); log(ok ? '✅ Prompt copied' : '❌ Failed', ok ? 'ok' : 'err'); });
+    const copyQsBtn = getBtn('taf-copy-questions');
+    if (copyQsBtn) copyQsBtn.addEventListener('click', Scanner.copyAllQuestions);
+    const clearHighlightsBtn = getBtn('taf-clear-highlights');
+    if (clearHighlightsBtn) clearHighlightsBtn.addEventListener('click', () => { document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok')); log('✨ Highlights cleared', 'info'); });
+    const clearAnswersBtn = getBtn('taf-clear-all-answers');
+    if (clearAnswersBtn) clearAnswersBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => { if (i.checked) { i.checked = false; i.dispatchEvent(new Event('change', {bubbles:true})); } });
+      document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(i => { if (i.value) { TAF.Utils.setNativeValue(i, ''); i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); } });
+      document.querySelectorAll('[contenteditable="true"]').forEach(el => { el.innerHTML = ''; el.dispatchEvent(new Event('input', {bubbles:true})); });
+      document.querySelectorAll('select').forEach(sel => { sel.selectedIndex = 0; sel.dispatchEvent(new Event('change', {bubbles:true})); });
       log('🧹 All answers cleared', 'ok');
     });
 
     settingsBtn.addEventListener('click', () => modal.classList.remove('hidden'));
     modalClose.forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
 
-    delayCheck.addEventListener('change', () => {
-      minDelay.disabled = !delayCheck.checked;
-      maxDelay.disabled = !delayCheck.checked;
-    });
-    humanCheck.addEventListener('change', () => {
-      humanChance.disabled = !humanCheck.checked;
-    });
-    charTypingCheck.addEventListener('change', () => {
-      charDelay.disabled = !charTypingCheck.checked;
-    });
+    // Enable/disable dependent inputs
+    const delayCheck = modal.querySelector('#taf-setting-delay');
+    const minDelay = modal.querySelector('#taf-setting-minDelay');
+    const maxDelay = modal.querySelector('#taf-setting-maxDelay');
+    delayCheck.addEventListener('change', () => { minDelay.disabled = !delayCheck.checked; maxDelay.disabled = !delayCheck.checked; });
+    const humanCheck = modal.querySelector('#taf-setting-human');
+    const humanChance = modal.querySelector('#taf-setting-humanChance');
+    humanCheck.addEventListener('change', () => humanChance.disabled = !humanCheck.checked);
+    const charCheck = modal.querySelector('#taf-setting-charTyping');
+    const charDelay = modal.querySelector('#taf-setting-charDelay');
+    charCheck.addEventListener('change', () => charDelay.disabled = !charCheck.checked);
 
+    // Save settings
     btnSaveSettings.addEventListener('click', () => {
+      Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
+      Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
+      Settings.set('hotkey', modal.querySelector('#taf-setting-hotkey').value.trim() || 'Delete');
+      Settings.set('aiPrompt', modal.querySelector('#taf-setting-aiPrompt').value);
+
       Settings.set('enableRandomDelays', delayCheck.checked);
       Settings.set('minDelay', parseInt(minDelay.value, 10) || 300);
       Settings.set('maxDelay', parseInt(maxDelay.value, 10) || 900);
       Settings.set('enableHumanTyping', humanCheck.checked);
       Settings.set('humanTypingChance', parseFloat(humanChance.value) || 0.2);
-      Settings.set('enableCharTyping', charTypingCheck.checked);
+      Settings.set('enableCharTyping', charCheck.checked);
       Settings.set('charTypingDelay', parseInt(charDelay.value, 10) || 50);
-      Settings.set('questionDelay', parseInt(questionDelay.value, 10) || 500);
-      Settings.set('showAnswerRows', showAnswersCheck.checked);
-      Settings.set('showLogPanel', showLogCheck.checked);
-      Settings.set('hotkey', hotkeyInput.value.trim() || 'Delete');
-      Settings.set('aiPrompt', aiPromptTextarea.value);
+      Settings.set('questionDelay', parseInt(modal.querySelector('#taf-setting-questionDelay').value, 10) || 500);
 
-      document.getElementById('taf-answer-section').style.display = showAnswersCheck.checked ? 'block' : 'none';
-      document.getElementById('taf-log').style.display = showLogCheck.checked ? 'block' : 'none';
+      Settings.set('accentColor', modal.querySelector('#taf-setting-accentColor').value);
+      Settings.set('backgroundColor', modal.querySelector('#taf-setting-bgColor').value);
+      Settings.set('blurIntensity', parseInt(modal.querySelector('#taf-setting-blur').value, 10) || 20);
 
+      Settings.set('showParseAdd', modal.querySelector('#taf-show-parseAdd').checked);
+      Settings.set('showClearAll', modal.querySelector('#taf-show-clearAll').checked);
+      Settings.set('showPaste', modal.querySelector('#taf-show-paste').checked);
+      Settings.set('showAiPrompt', modal.querySelector('#taf-show-aiPrompt').checked);
+      Settings.set('showCopyQuestions', modal.querySelector('#taf-show-copyQuestions').checked);
+      Settings.set('showClearHighlights', modal.querySelector('#taf-show-clearHighlights').checked);
+      Settings.set('showClearAllAnswers', modal.querySelector('#taf-show-clearAllAnswers').checked);
+
+      Settings.applyTheme();
       modal.classList.add('hidden');
-      log('Settings saved. New hotkey: ' + Settings.get('hotkey'), 'ok');
+      log('Settings saved. Refresh to see all UI changes.', 'ok');
+      // Reload UI to reflect button visibility changes
+      setTimeout(() => location.reload(), 500);
     });
   }
 
