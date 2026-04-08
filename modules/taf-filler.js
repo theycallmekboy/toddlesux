@@ -11,6 +11,8 @@ TAF.Filler = (function() {
   const Settings = TAF.Settings;
   const Scanner = TAF.Scanner;
 
+  let abortController = null;
+
   // ─────────────────────────────────────────────────────────────
   //  Random delay based on settings
   // ─────────────────────────────────────────────────────────────
@@ -43,26 +45,22 @@ TAF.Filler = (function() {
     const useHumanSim = Settings.get('enableHumanTyping');
     const useCharTyping = Settings.get('enableCharTyping');
 
-    // If both disabled, just set instantly
     if (!useHumanSim && !useCharTyping) {
       setNativeValue(inputElement, text);
       inputElement.dispatchEvent(new Event('input', { bubbles: true }));
       return;
     }
 
-    // Character‑by‑character typing
     if (useCharTyping) {
       await typeCharByChar(inputElement, text);
 
-      // Optionally layer human mistake on top
       if (useHumanSim && Math.random() < Settings.get('humanTypingChance')) {
-        const backCount = Math.floor(Math.random() * 3) + 1; // backspace 1–3 chars
+        const backCount = Math.floor(Math.random() * 3) + 1;
         const partial = text.slice(0, -backCount);
         setNativeValue(inputElement, partial);
         inputElement.dispatchEvent(new Event('input', { bubbles: true }));
         await sleep(200 + Math.random() * 200);
 
-        // Retype the remaining characters
         for (let i = partial.length; i < text.length; i++) {
           const newVal = text.slice(0, i + 1);
           setNativeValue(inputElement, newVal);
@@ -73,7 +71,6 @@ TAF.Filler = (function() {
       return;
     }
 
-    // Human mistake simulation without char‑typing (original behavior)
     if (Math.random() < Settings.get('humanTypingChance')) {
       const partialLength = Math.floor(text.length * 0.6);
       const partial = text.substring(0, partialLength);
@@ -235,7 +232,6 @@ TAF.Filler = (function() {
     const indexKey = `q${index + 1}`;
     if (answers[indexKey]) return answers[indexKey];
 
-    // Also try sub‑question keys like q1.1
     const label = Scanner.getQuestionLabel(block);
     const subMatch = label.match(/^Q(\d+(?:\.\d+)?)/i);
     if (subMatch) {
@@ -243,7 +239,6 @@ TAF.Filler = (function() {
       if (answers[subKey]) return answers[subKey];
     }
 
-    // Keyword match
     const labelLo = label.toLowerCase();
     for (const [key, val] of Object.entries(answers)) {
       if (/^q\d+(\.\d+)?$/.test(key)) continue;
@@ -253,38 +248,73 @@ TAF.Filler = (function() {
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  Main fill orchestration
+  //  Main fill orchestration (with cancellation support)
   // ─────────────────────────────────────────────────────────────
   async function runFill(answersMap) {
+    if (abortController) {
+      abortController.abort();
+    }
+    abortController = new AbortController();
+    const signal = abortController.signal;
+
     TAF.Utils.clearLog();
-    setStatus('RUNNING', true);
-
-    const blocks = Scanner.findQuestionBlocks();
-    if (!blocks.length) {
-      log('No question blocks found — scroll to load them first.', 'warn');
-      setStatus('NONE', false);
-      return;
+    TAF.Utils.setStatus('RUNNING', true);
+    const runBtn = document.getElementById('taf-btn-run');
+    if (runBtn) {
+      runBtn.textContent = '⬛ Stop';
+      runBtn.classList.add('stop');
     }
 
-    log(`Processing ${blocks.length} block(s)…`, 'info');
-    let filled = 0;
+    try {
+      const blocks = Scanner.findQuestionBlocks();
+      if (!blocks.length) {
+        TAF.Utils.log('No question blocks found — scroll to load them first.', 'warn');
+        TAF.Utils.setStatus('NONE', false);
+        return;
+      }
 
-    for (let i = 0; i < blocks.length; i++) {
-      const answerArray = findAnswer(answersMap, blocks[i], i);
-      if (!answerArray || answerArray.length === 0) continue;
+      TAF.Utils.log(`Processing ${blocks.length} block(s)…`, 'info');
+      let filled = 0;
 
-      await humanDelay();
-      const success = await fillBlock(blocks[i], answerArray, Scanner.getQuestionLabel(blocks[i]));
-      if (success) filled++;
+      for (let i = 0; i < blocks.length; i++) {
+        if (signal.aborted) break;
+        const answerArray = findAnswer(answersMap, blocks[i], i);
+        if (!answerArray || answerArray.length === 0) continue;
+        await humanDelay();
+        if (signal.aborted) break;
+        const success = await fillBlock(blocks[i], answerArray, Scanner.getQuestionLabel(blocks[i]));
+        if (success) filled++;
+      }
+
+      if (!signal.aborted) {
+        const allGood = filled > 0;
+        TAF.Utils.log(allGood
+          ? `${filled} of ${blocks.length} field(s) filled successfully.`
+          : 'Nothing filled — check your keys match question text or use q1/q2 indexing.',
+          allGood ? 'ok' : 'warn'
+        );
+        TAF.Utils.setStatus(allGood ? `${filled} DONE` : 'MISS', allGood);
+      } else {
+        TAF.Utils.log('Filling stopped by user.', 'warn');
+        TAF.Utils.setStatus('STOPPED', false);
+      }
+    } finally {
+      abortController = null;
+      if (runBtn) {
+        runBtn.textContent = '▶ fill now';
+        runBtn.classList.remove('stop');
+      }
     }
+  }
 
-    const allGood = filled > 0;
-    log(allGood
-      ? `${filled} of ${blocks.length} field(s) filled successfully.`
-      : 'Nothing filled — check your keys match question text or use q1/q2 indexing.',
-      allGood ? 'ok' : 'warn'
-    );
-    setStatus(allGood ? `${filled} DONE` : 'MISS', allGood);
+  function stopFill() {
+    if (abortController) {
+      abortController.abort();
+    }
+  }
+
+  function isRunning() {
+    return abortController !== null;
   }
 
   return {
@@ -292,7 +322,9 @@ TAF.Filler = (function() {
     simulateHumanTyping,
     fillBlock,
     findAnswer,
-    runFill
+    runFill,
+    stopFill,
+    isRunning
   };
 
 })();
