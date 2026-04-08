@@ -11,64 +11,44 @@ TAF.Settings = (function() {
 
   const DEFAULTS = {
     enableRandomDelays: true,
-    minDelay: 300,            // milliseconds
+    minDelay: 300,
     maxDelay: 900,
     enableHumanTyping: false,
-    humanTypingChance: 0.2,   // 20% chance per field
+    humanTypingChance: 0.2,
+    enableCharTyping: false,
+    charTypingDelay: 50,
+    questionDelay: 500,
+    showAnswerRows: true,      // new
+    showLogPanel: true,        // new
+    aiPrompt: `Format your answers exactly like this for toddlesux:
+
+- Start each line with Q followed by the question number, then a colon, then the answer.
+  Example: Q1: Britain, France, Russia
+
+- For multiple‑choice questions, just write the correct option text.
+- For questions with **multiple blanks**, separate each answer with a pipe symbol (|) with spaces around it.
+  Example: Q3: Treaty of Versailles | hyperinflation | worthless
+
+- If a question has the same answer repeated, just repeat the text.
+- Provide ONLY the Q&A lines, one per line, no extra commentary.`
   };
 
   let settings = { ...DEFAULTS };
 
-  // Load saved settings from Tampermonkey storage
   function load() {
     const saved = GM_getValue(STORAGE_KEY, null);
     if (saved) {
-      try {
-        settings = { ...DEFAULTS, ...JSON.parse(saved) };
-      } catch (e) {
-        console.warn('[toddlesux] Failed to parse settings, using defaults.');
-      }
+      try { settings = { ...DEFAULTS, ...JSON.parse(saved) }; } catch(e) {}
     }
   }
 
-  // Save current settings to storage
-  function save() {
-    GM_setValue(STORAGE_KEY, JSON.stringify(settings));
-  }
+  function save() { GM_setValue(STORAGE_KEY, JSON.stringify(settings)); }
+  function get(key) { return settings[key] !== undefined ? settings[key] : DEFAULTS[key]; }
+  function set(key, value) { settings[key] = value; save(); }
+  function reset() { settings = { ...DEFAULTS }; save(); }
+  function getAll() { return { ...settings }; }
 
-  // Get a setting value
-  function get(key) {
-    return settings[key] !== undefined ? settings[key] : DEFAULTS[key];
-  }
-
-  // Set a setting value and save
-  function set(key, value) {
-    settings[key] = value;
-    save();
-  }
-
-  // Reset to defaults
-  function reset() {
-    settings = { ...DEFAULTS };
-    save();
-  }
-
-  // Get all settings
-  function getAll() {
-    return { ...settings };
-  }
-
-  // Initialize on load
   load();
 
-  return {
-    get,
-    set,
-    reset,
-    getAll,
-    DEFAULTS,
-    load,
-    save
-  };
-
+  return { get, set, reset, getAll, DEFAULTS, load, save };
 })();
