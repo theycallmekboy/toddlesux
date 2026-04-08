@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with dynamic settings, close button, functional Disabled tab, and resizable modal
+// toddlesux - Apple-inspired UI with ChatGPT integration
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -7,7 +7,7 @@ window.TAF = window.TAF || {};
 TAF.UI = (function() {
   'use strict';
 
-  const { log, clearLog, setStatus, copyToClipboard, escHtml } = TAF.Utils;
+  const { log, clearLog, setStatus, copyToClipboard, escHtml, callOpenAI } = TAF.Utils;
   const Settings = TAF.Settings;
   const Scanner = TAF.Scanner;
   const Filler = TAF.Filler;
@@ -294,6 +294,17 @@ TAF.UI = (function() {
             <div class="taf-bulk-buttons" id="taf-bulk-buttons-row2" style="margin-top:6px;"></div>
           </div>
 
+          <!-- ChatGPT Section -->
+          <div id="taf-chatgpt-section">
+            <div class="taf-section-label">🤖 ChatGPT</div>
+            <textarea id="taf-chatgpt-questions" placeholder="Paste your questions here..."></textarea>
+            <div class="taf-chatgpt-buttons">
+              <button class="taf-btn" id="taf-chatgpt-send">Send to ChatGPT</button>
+              <button class="taf-btn" id="taf-chatgpt-parse">Parse & Fill</button>
+            </div>
+            <div id="taf-chatgpt-output" placeholder="AI answers will appear here..."></div>
+          </div>
+
           <div class="taf-btn-row">
             <button class="taf-btn" id="taf-btn-scan">⟳ Scan page</button>
             <button class="taf-btn" id="taf-btn-run">▶ Fill now</button>
@@ -302,7 +313,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.9 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v5.0 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -312,6 +323,56 @@ TAF.UI = (function() {
     currentEntries = entries;
 
     rebuildBulkButtons(root);
+
+    // ChatGPT elements
+    const chatQuestions = root.querySelector('#taf-chatgpt-questions');
+    const chatOutput = root.querySelector('#taf-chatgpt-output');
+    const btnSend = root.querySelector('#taf-chatgpt-send');
+    const btnParseAI = root.querySelector('#taf-chatgpt-parse');
+
+    let aiAnswers = '';
+
+    btnSend.addEventListener('click', async () => {
+      const questions = chatQuestions.value.trim();
+      if (!questions) {
+        log('Paste questions first.', 'warn');
+        return;
+      }
+
+      const apiKey = Settings.get('openaiApiKey');
+      if (!apiKey) {
+        log('❌ OpenAI API key not set. Add it in Settings → General.', 'err');
+        return;
+      }
+
+      setStatus('THINKING', true);
+      btnSend.disabled = true;
+      btnSend.textContent = 'Thinking...';
+      chatOutput.textContent = '';
+
+      aiAnswers = await callOpenAI(questions, (chunk, full) => {
+        chatOutput.textContent = full;
+      });
+
+      btnSend.disabled = false;
+      btnSend.textContent = 'Send to ChatGPT';
+      if (aiAnswers) {
+        log('✅ AI answers received! Click "Parse & Fill" to use them.', 'ok');
+        setStatus('AI READY', true);
+      } else {
+        setStatus('ERROR', false);
+      }
+    });
+
+    btnParseAI.addEventListener('click', () => {
+      if (!aiAnswers) {
+        log('No AI answers yet. Click "Send to ChatGPT" first.', 'warn');
+        return;
+      }
+      bulkText.value = aiAnswers;
+      parseBulkImport(bulkText, entries);
+      log('✅ AI answers parsed and loaded.', 'ok');
+    });
 
     // Resize handle for main panel
     const resizeHandle = document.createElement('div');
@@ -392,6 +453,14 @@ TAF.UI = (function() {
               <input type="text" id="taf-setting-hotkey" value="${escHtml(Settings.get('hotkey'))}" readonly style="flex:1; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
               <button class="taf-btn" id="taf-capture-hotkey" style="flex:0;">Press key</button>
             </div>
+          </div>
+          <div class="taf-setting-item">
+            <label>OpenAI API Key</label>
+            <input type="password" id="taf-setting-openaiKey" value="${escHtml(Settings.get('openaiApiKey'))}" placeholder="sk-..." style="width:100%; margin-top:6px;">
+          </div>
+          <div class="taf-setting-item">
+            <label>AI Model</label>
+            <input type="text" id="taf-setting-aiModel" value="${escHtml(Settings.get('aiModel'))}" placeholder="gpt-4o-mini" style="width:100%; margin-top:6px;">
           </div>
           <div class="taf-setting-item">
             <label>AI Prompt</label>
@@ -476,7 +545,7 @@ TAF.UI = (function() {
     `;
     document.body.appendChild(modal);
 
-    // Modal dragging
+    // Modal dragging & resizing (same as before)
     const modalHeader = modal.querySelector('.taf-modal-header');
     let isModalDragging = false;
     let modalStartX, modalStartY, modalStartLeft, modalStartTop;
@@ -512,7 +581,6 @@ TAF.UI = (function() {
       modal.style.transition = '';
     });
 
-    // Modal resizing
     const modalContent = modal.querySelector('.taf-modal-content');
     const modalResizeHandle = document.createElement('div');
     modalResizeHandle.className = 'taf-modal-resize-handle';
@@ -535,8 +603,8 @@ TAF.UI = (function() {
       if (!isModalResizing) return;
       const dx = e.clientX - resizeStartX;
       const dy = e.clientY - resizeStartY;
-      const newWidth = Math.max(360, startModalWidth + dx);
-      const newHeight = Math.max(400, startModalHeight + dy);
+      const newWidth = Math.max(420, startModalWidth + dx);
+      const newHeight = Math.max(500, startModalHeight + dy);
       modal.style.width = newWidth + 'px';
       modal.style.height = newHeight + 'px';
     });
@@ -628,6 +696,8 @@ TAF.UI = (function() {
       Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
       Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
       Settings.set('hotkey', modal.querySelector('#taf-setting-hotkey').value.trim() || 'Delete');
+      Settings.set('openaiApiKey', modal.querySelector('#taf-setting-openaiKey').value.trim());
+      Settings.set('aiModel', modal.querySelector('#taf-setting-aiModel').value.trim() || 'gpt-4o-mini');
       Settings.set('aiPrompt', modal.querySelector('#taf-setting-aiPrompt').value);
 
       Settings.set('enableRandomDelays', delayCheck.checked);
@@ -659,7 +729,7 @@ TAF.UI = (function() {
       rebuildBulkButtons(root);
       refreshDisabledTab(modal, root, entries, bulkText);
       modal.classList.add('hidden');
-      log('✅ Settings saved and applied.', 'ok');
+      log('✅ Settings saved.', 'ok');
     });
 
     // First-time tutorial
@@ -672,7 +742,7 @@ TAF.UI = (function() {
           <p>Auto‑fill Toddle forms with human‑like delays.<br>
           <strong>Drag</strong> the header to move, <strong>resize</strong> from the bottom‑right corner.<br>
           Press <strong>${Settings.get('hotkey')}</strong> to hide/show.<br>
-          Use <strong>Bulk Import</strong> after pasting answers from AI.</p>
+          Use <strong>ChatGPT</strong> section to get AI answers automatically.</p>
           <button class="taf-btn" id="taf-tutorial-skip">Skip</button>
           <button class="taf-btn" id="taf-tutorial-gotit" style="background:var(--taf-accent); color:#000;">Got it</button>
         </div>
