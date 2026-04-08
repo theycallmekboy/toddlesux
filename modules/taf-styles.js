@@ -28,8 +28,12 @@ TAF.Styles = (function() {
         right: 20px;
         transform: translateY(-50%);
         width: 360px;
+        min-width: 280px;
+        min-height: 400px;
         z-index: 2147483647;
         transition: opacity 0.2s;
+        resize: both;
+        overflow: auto;
       }
       #taf-root.taf-hidden {
         opacity: 0;
@@ -48,8 +52,31 @@ TAF.Styles = (function() {
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        max-height: 85vh;
+        height: 100%;
+        width: 100%;
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255, 255, 255, 0.03) inset;
+        position: relative;
+      }
+
+      .taf-resize-handle {
+        position: absolute;
+        bottom: 4px;
+        right: 4px;
+        width: 20px;
+        height: 20px;
+        cursor: nwse-resize;
+        background: transparent;
+        z-index: 10;
+      }
+      .taf-resize-handle::after {
+        content: '';
+        position: absolute;
+        bottom: 3px;
+        right: 3px;
+        width: 8px;
+        height: 8px;
+        border-right: 2px solid rgba(255,255,255,0.3);
+        border-bottom: 2px solid rgba(255,255,255,0.3);
       }
 
       #taf-header {
@@ -322,6 +349,39 @@ TAF.Styles = (function() {
         border: none;
         background: transparent;
         cursor: pointer;
+      }
+
+      /* Tutorial overlay */
+      #taf-tutorial-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.8);
+        backdrop-filter: blur(12px);
+        z-index: 2147483649;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .taf-tutorial-card {
+        background: rgba(30,30,30,0.9);
+        backdrop-filter: blur(20px);
+        border: 0.5px solid rgba(255,255,255,0.1);
+        border-radius: 32px;
+        padding: 32px;
+        max-width: 500px;
+        text-align: center;
+      }
+      .taf-tutorial-card h2 {
+        color: var(--taf-accent);
+        margin: 0 0 16px;
+      }
+      .taf-tutorial-card p {
+        color: #ddd;
+        line-height: 1.6;
+        margin-bottom: 20px;
+      }
+      .taf-tutorial-card .taf-btn {
+        margin: 0 8px;
       }
     `);
   };
