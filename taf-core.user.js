@@ -1,0 +1,59 @@
+// ==UserScript==
+// @name         toddlesux
+// @namespace    http://tampermonkey.net/
+// @version      4.0
+// @description  Auto-fills Toddle forms with human-like delays, sub-question support, settings & emergency hide
+// @author       theycallmekboy - made with DS
+// @match        https://web.toddleapp.com/*
+// @match        https://*.toddleapp.com/*
+// @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-utils.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-styles.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-settings.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-scanner.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-filler.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-ui.js
+// @run-at       document-idle
+// ==/UserScript==
+
+(function() {
+  'use strict';
+
+  // Emergency hide: F1 toggles visibility
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F1') {
+      e.preventDefault();
+      const root = document.getElementById('taf-root');
+      if (root) {
+        root.classList.toggle('taf-emergency-hidden');
+        if (window.TAF && TAF.Utils) {
+          TAF.Utils.log(root.classList.contains('taf-emergency-hidden') ? 'Panel hidden (F1 to show)' : 'Panel shown', 'info');
+        }
+      }
+    }
+  });
+
+  // Wait for all modules to load and DOM to be ready
+  function init() {
+    if (typeof window.TAF === 'undefined' || !TAF.UI) {
+      console.error('[toddlesux] Modules not loaded. Check @require paths.');
+      return;
+    }
+
+    TAF.UI.buildSidebar();
+
+    setTimeout(() => {
+      const root = document.getElementById('taf-root');
+      if (root) root.classList.remove('taf-hidden');
+    }, 900);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
