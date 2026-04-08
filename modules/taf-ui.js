@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with dynamic settings (no reload)
+// toddlesux - Apple-inspired UI with dynamic settings, close button, and accent consistency
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -35,11 +35,10 @@ TAF.UI = (function() {
     row1.innerHTML = buttons1.join('');
     row2.innerHTML = buttons2.join('');
 
-    // Re-attach event listeners for the new buttons
     attachBulkButtonListeners(root);
   }
 
-  // Attach event listeners to bulk buttons (called after rebuild)
+  // Attach event listeners to bulk buttons
   function attachBulkButtonListeners(root) {
     const entries = root.querySelector('#taf-entries');
     const bulkText = root.querySelector('#taf-bulk-text');
@@ -227,6 +226,7 @@ TAF.UI = (function() {
           <div style="display:flex; align-items:center;">
             <div id="taf-status-badge" class="inactive">IDLE</div>
             <button id="taf-settings-btn" title="Settings">⚙️</button>
+            <button id="taf-close-btn" title="Close panel">✕</button>
           </div>
         </div>
         <div id="taf-body">
@@ -251,7 +251,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.6 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.7 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -434,6 +434,7 @@ TAF.UI = (function() {
     const btnScan = root.querySelector('#taf-btn-scan');
     const btnRun = root.querySelector('#taf-btn-run');
     const settingsBtn = root.querySelector('#taf-settings-btn');
+    const closeBtn = root.querySelector('#taf-close-btn');
     const btnSaveSettings = modal.querySelector('#taf-save-settings');
     const modalClose = modal.querySelectorAll('.taf-modal-close');
 
@@ -469,6 +470,10 @@ TAF.UI = (function() {
     });
 
     settingsBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+    closeBtn.addEventListener('click', () => {
+      root.classList.add('taf-emergency-hidden');
+      log('Panel closed. Press ' + Settings.get('hotkey') + ' to reopen.', 'info');
+    });
     modalClose.forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
 
     // Enable/disable dependent inputs
