@@ -13,9 +13,6 @@ TAF.Filler = (function() {
 
   let abortController = null;
 
-  // ─────────────────────────────────────────────────────────────
-  //  Random delay based on settings
-  // ─────────────────────────────────────────────────────────────
   async function humanDelay() {
     if (!Settings.get('enableRandomDelays')) return;
     const min = Settings.get('minDelay');
@@ -24,9 +21,6 @@ TAF.Filler = (function() {
     await sleep(delay);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Type text character by character with delay
-  // ─────────────────────────────────────────────────────────────
   async function typeCharByChar(inputElement, text) {
     const delay = Settings.get('charTypingDelay') || 50;
     let current = '';
@@ -38,9 +32,6 @@ TAF.Filler = (function() {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Simulate human typing (supports char‑by‑char and mistakes)
-  // ─────────────────────────────────────────────────────────────
   async function simulateHumanTyping(inputElement, text) {
     const useHumanSim = Settings.get('enableHumanTyping');
     const useCharTyping = Settings.get('enableCharTyping');
@@ -53,14 +44,12 @@ TAF.Filler = (function() {
 
     if (useCharTyping) {
       await typeCharByChar(inputElement, text);
-
       if (useHumanSim && Math.random() < Settings.get('humanTypingChance')) {
         const backCount = Math.floor(Math.random() * 3) + 1;
         const partial = text.slice(0, -backCount);
         setNativeValue(inputElement, partial);
         inputElement.dispatchEvent(new Event('input', { bubbles: true }));
         await sleep(200 + Math.random() * 200);
-
         for (let i = partial.length; i < text.length; i++) {
           const newVal = text.slice(0, i + 1);
           setNativeValue(inputElement, newVal);
@@ -77,13 +66,11 @@ TAF.Filler = (function() {
       setNativeValue(inputElement, partial);
       inputElement.dispatchEvent(new Event('input', { bubbles: true }));
       await sleep(150 + Math.random() * 200);
-
       const backspaceCount = Math.floor(Math.random() * 4) + 2;
       const newText = partial.substring(0, Math.max(0, partial.length - backspaceCount));
       setNativeValue(inputElement, newText);
       inputElement.dispatchEvent(new Event('input', { bubbles: true }));
       await sleep(200 + Math.random() * 300);
-
       setNativeValue(inputElement, text);
       inputElement.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
@@ -93,14 +80,11 @@ TAF.Filler = (function() {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Fill a single question block
-  // ─────────────────────────────────────────────────────────────
   async function fillBlock(block, answerArray, label) {
     const firstAns = answerArray[0] || '';
     const firstAnsLo = firstAns.toLowerCase();
 
-    // 1. Multiple‑choice (Toddle specific)
+    // 1. Multiple‑choice
     const optionsContainer = block.querySelector(Scanner.OPTIONS_CONTAINER_SELECTOR);
     if (optionsContainer) {
       const items = optionsContainer.querySelectorAll(Scanner.OPTION_ITEM_SELECTOR);
@@ -116,9 +100,9 @@ TAF.Filler = (function() {
           } else {
             item.click();
           }
-          highlight(item);
+          highlight(item); // IMMEDIATE HIGHLIGHT
           log(`Multiple‑choice → "${firstAns}" (${label.slice(0,30)})`, 'ok');
-          await sleep(300); // Stabilization delay for React
+          await sleep(300);
           await sleep(Settings.get('questionDelay') || 0);
           return true;
         }
@@ -179,7 +163,7 @@ TAF.Filler = (function() {
       }
     }
 
-    // 5. Custom dropdown (async)
+    // 5. Custom dropdown
     const dropTrigger = block.querySelector(
       '[class*="dropdown"], [class*="Dropdown"], [aria-haspopup="listbox"], [class*="select-trigger"]'
     );
@@ -200,7 +184,7 @@ TAF.Filler = (function() {
       return true;
     }
 
-    // 6. TEXT INPUTS / TEXTAREAS / CONTENTEDITABLE – fill all in order
+    // 6. Text inputs
     const textEls = [...block.querySelectorAll(
       'input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea, [contenteditable="true"]'
     )];
@@ -222,7 +206,7 @@ TAF.Filler = (function() {
           inp.dispatchEvent(new Event('change', { bubbles: true }));
           inp.blur();
         }
-        highlight(inp);
+        highlight(inp); // IMMEDIATE HIGHLIGHT after each text field
         filledCount++;
         await humanDelay();
       }
@@ -237,9 +221,6 @@ TAF.Filler = (function() {
     return false;
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Match answer array to question block
-  // ─────────────────────────────────────────────────────────────
   function findAnswer(answers, block, index) {
     const indexKey = `q${index + 1}`;
     if (answers[indexKey]) return answers[indexKey];
@@ -259,9 +240,6 @@ TAF.Filler = (function() {
     return null;
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Main fill orchestration (with cancellation support)
-  // ─────────────────────────────────────────────────────────────
   async function runFill(answersMap) {
     if (abortController) {
       abortController.abort();
@@ -338,5 +316,4 @@ TAF.Filler = (function() {
     stopFill,
     isRunning
   };
-
 })();
