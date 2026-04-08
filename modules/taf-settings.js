@@ -10,29 +10,29 @@ TAF.Settings = (function() {
   const STORAGE_KEY = 'taf_settings';
 
   const DEFAULTS = {
-    enableRandomDelays: false,
+    enableRandomDelays: true,
     minDelay: 300,
     maxDelay: 900,
     enableHumanTyping: false,
     humanTypingChance: 0.2,
     enableCharTyping: false,
     charTypingDelay: 50,
-    questionDelay: 10,
+    questionDelay: 500,
     showAnswerRows: true,
     showLogPanel: true,
-    hotkey: 'Delete',        
+    hotkey: 'Delete',
     aiPrompt: `Format your answers exactly like this for toddlesux:
-  
-  - Start each line with Q followed by the question number, then a colon, then the answer.
-    Example: Q1: Britain, France, Russia
-  
-  - For multiple‑choice questions, just write the correct option text.
-  - For questions with **multiple blanks**, separate each answer with a pipe symbol (|) with spaces around it.
-    Example: Q3: Treaty of Versailles | hyperinflation | worthless
-  
-  - If a question has the same answer repeated, just repeat the text.
-  - Provide ONLY the Q&A lines, one per line, no extra commentary.`
-};
+
+- Start each line with Q followed by the question number, then a colon, then the answer.
+  Example: Q1: Britain, France, Russia
+
+- For multiple‑choice questions, just write the correct option text.
+- For questions with **multiple blanks**, separate each answer with a pipe symbol (|) with spaces around it.
+  Example: Q3: Treaty of Versailles | hyperinflation | worthless
+
+- If a question has the same answer repeated, just repeat the text.
+- Provide ONLY the Q&A lines, one per line, no extra commentary.`
+  };
 
   let settings = { ...DEFAULTS };
 
