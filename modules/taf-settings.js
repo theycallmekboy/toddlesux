@@ -1,5 +1,5 @@
 // modules/taf-settings.js
-// toddlesux - Settings management
+// toddlesux - Settings management with theming
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -10,6 +10,7 @@ TAF.Settings = (function() {
   const STORAGE_KEY = 'taf_settings';
 
   const DEFAULTS = {
+    // Humanize
     enableRandomDelays: true,
     minDelay: 300,
     maxDelay: 900,
@@ -18,9 +19,27 @@ TAF.Settings = (function() {
     enableCharTyping: false,
     charTypingDelay: 50,
     questionDelay: 500,
+
+    // General UI
     showAnswerRows: true,
     showLogPanel: true,
     hotkey: 'Delete',
+
+    // Theme (Apple dark by default)
+    accentColor: '#f5a623',      // orange
+    backgroundColor: '#000000',  // true black
+    blurIntensity: 20,           // px
+
+    // Button visibility
+    showParseAdd: true,
+    showClearAll: true,
+    showPaste: true,
+    showAiPrompt: true,
+    showCopyQuestions: true,
+    showClearHighlights: true,
+    showClearAllAnswers: true,
+
+    // AI Prompt
     aiPrompt: `Format your answers exactly like this for toddlesux:
 
 - Start each line with Q followed by the question number, then a colon, then the answer.
@@ -51,5 +70,16 @@ TAF.Settings = (function() {
 
   load();
 
-  return { get, set, reset, getAll, DEFAULTS, load, save };
+  // Apply theme to document root
+  function applyTheme() {
+    const root = document.documentElement;
+    root.style.setProperty('--taf-accent', settings.accentColor);
+    root.style.setProperty('--taf-bg', settings.backgroundColor);
+    root.style.setProperty('--taf-blur', settings.blurIntensity + 'px');
+  }
+
+  // Call after load and on change
+  applyTheme();
+
+  return { get, set, reset, getAll, DEFAULTS, load, save, applyTheme };
 })();
