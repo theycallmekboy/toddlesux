@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with theming, tabs, resizing, and tutorial
+// toddlesux - Apple-inspired UI with dynamic settings (no reload)
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -14,6 +14,108 @@ TAF.UI = (function() {
 
   const PRESET_ANSWERS = {};
   const TUTORIAL_SHOWN_KEY = 'taf_tutorial_shown';
+
+  // Rebuild the bulk button rows based on current settings
+  function rebuildBulkButtons(root) {
+    const row1 = root.querySelector('#taf-bulk-buttons-row1');
+    const row2 = root.querySelector('#taf-bulk-buttons-row2');
+    if (!row1 || !row2) return;
+
+    const buttons1 = [];
+    const buttons2 = [];
+
+    if (Settings.get('showParseAdd')) buttons1.push('<button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>');
+    if (Settings.get('showClearAll')) buttons1.push('<button class="taf-btn" id="taf-bulk-clear">Clear All</button>');
+    if (Settings.get('showPaste')) buttons1.push('<button class="taf-btn" id="taf-paste-answers">📋 Paste</button>');
+    if (Settings.get('showAiPrompt')) buttons1.push('<button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>');
+    if (Settings.get('showCopyQuestions')) buttons1.push('<button class="taf-btn" id="taf-copy-questions">📄 Copy Qs</button>');
+    if (Settings.get('showClearHighlights')) buttons2.push('<button class="taf-btn" id="taf-clear-highlights">✨ Clear Highlights</button>');
+    if (Settings.get('showClearAllAnswers')) buttons2.push('<button class="taf-btn" id="taf-clear-all-answers">🧹 Clear All Answers</button>');
+
+    row1.innerHTML = buttons1.join('');
+    row2.innerHTML = buttons2.join('');
+
+    // Re-attach event listeners for the new buttons
+    attachBulkButtonListeners(root);
+  }
+
+  // Attach event listeners to bulk buttons (called after rebuild)
+  function attachBulkButtonListeners(root) {
+    const entries = root.querySelector('#taf-entries');
+    const bulkText = root.querySelector('#taf-bulk-text');
+
+    const parseBtn = root.querySelector('#taf-bulk-parse');
+    if (parseBtn) {
+      parseBtn.removeEventListener('click', parseBulkImportHandler);
+      parseBtn.addEventListener('click', () => parseBulkImport(bulkText, entries));
+    }
+
+    const clearBtn = root.querySelector('#taf-bulk-clear');
+    if (clearBtn) {
+      clearBtn.removeEventListener('click', clearEntriesHandler);
+      clearBtn.addEventListener('click', () => {
+        entries.innerHTML = '';
+        addAnswerRow(entries); addAnswerRow(entries);
+        clearLog();
+        log('Answer rows cleared.', 'info');
+      });
+    }
+
+    const pasteBtn = root.querySelector('#taf-paste-answers');
+    if (pasteBtn) {
+      pasteBtn.removeEventListener('click', pasteHandler);
+      pasteBtn.addEventListener('click', async () => {
+        try {
+          bulkText.value = await navigator.clipboard.readText();
+          log('✅ Pasted from clipboard', 'ok');
+        } catch { log('❌ Failed to read clipboard', 'err'); }
+      });
+    }
+
+    const promptBtn = root.querySelector('#taf-copy-prompt');
+    if (promptBtn) {
+      promptBtn.removeEventListener('click', copyPromptHandler);
+      promptBtn.addEventListener('click', async () => {
+        const ok = await copyToClipboard(Settings.get('aiPrompt'));
+        log(ok ? '✅ AI prompt copied!' : '❌ Failed to copy', ok ? 'ok' : 'err');
+      });
+    }
+
+    const copyQsBtn = root.querySelector('#taf-copy-questions');
+    if (copyQsBtn) {
+      copyQsBtn.removeEventListener('click', Scanner.copyAllQuestions);
+      copyQsBtn.addEventListener('click', Scanner.copyAllQuestions);
+    }
+
+    const clearHighlightsBtn = root.querySelector('#taf-clear-highlights');
+    if (clearHighlightsBtn) {
+      clearHighlightsBtn.removeEventListener('click', clearHighlightsHandler);
+      clearHighlightsBtn.addEventListener('click', () => {
+        document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
+        log('✨ Highlights cleared', 'info');
+      });
+    }
+
+    const clearAnswersBtn = root.querySelector('#taf-clear-all-answers');
+    if (clearAnswersBtn) {
+      clearAnswersBtn.removeEventListener('click', clearAllAnswersHandler);
+      clearAnswersBtn.addEventListener('click', () => {
+        document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => { if (i.checked) { i.checked = false; i.dispatchEvent(new Event('change', {bubbles:true})); } });
+        document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(i => { if (i.value) { TAF.Utils.setNativeValue(i, ''); i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); } });
+        document.querySelectorAll('[contenteditable="true"]').forEach(el => { el.innerHTML = ''; el.dispatchEvent(new Event('input', {bubbles:true})); });
+        document.querySelectorAll('select').forEach(sel => { sel.selectedIndex = 0; sel.dispatchEvent(new Event('change', {bubbles:true})); });
+        log('🧹 All answers cleared', 'ok');
+      });
+    }
+  }
+
+  // Handler references for removal
+  function parseBulkImportHandler() {}
+  function clearEntriesHandler() {}
+  function pasteHandler() {}
+  function copyPromptHandler() {}
+  function clearHighlightsHandler() {}
+  function clearAllAnswersHandler() {}
 
   function parseBulkImport(textarea, entriesContainer) {
     const raw = textarea.value.trim();
@@ -154,22 +256,8 @@ TAF.UI = (function() {
     `;
     document.body.appendChild(root);
 
-    // Populate bulk buttons based on settings
-    const row1 = root.querySelector('#taf-bulk-buttons-row1');
-    const row2 = root.querySelector('#taf-bulk-buttons-row2');
-    const buttons1 = [];
-    const buttons2 = [];
-
-    if (Settings.get('showParseAdd')) buttons1.push('<button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>');
-    if (Settings.get('showClearAll')) buttons1.push('<button class="taf-btn" id="taf-bulk-clear">Clear All</button>');
-    if (Settings.get('showPaste')) buttons1.push('<button class="taf-btn" id="taf-paste-answers">📋 Paste</button>');
-    if (Settings.get('showAiPrompt')) buttons1.push('<button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>');
-    if (Settings.get('showCopyQuestions')) buttons1.push('<button class="taf-btn" id="taf-copy-questions">📄 Copy Qs</button>');
-    if (Settings.get('showClearHighlights')) buttons2.push('<button class="taf-btn" id="taf-clear-highlights">✨ Clear Highlights</button>');
-    if (Settings.get('showClearAllAnswers')) buttons2.push('<button class="taf-btn" id="taf-clear-all-answers">🧹 Clear All Answers</button>');
-
-    row1.innerHTML = buttons1.join('');
-    row2.innerHTML = buttons2.join('');
+    // Initial button build
+    rebuildBulkButtons(root);
 
     // Resize handle
     const resizeHandle = document.createElement('div');
@@ -242,9 +330,6 @@ TAF.UI = (function() {
           </div>
           <div class="taf-setting-item">
             <label><input type="checkbox" id="taf-setting-showLog" ${Settings.get('showLogPanel') ? 'checked' : ''}> Show log panel</label>
-          </div>
-          <div class="taf-setting-item">
-            <label><input type="checkbox" id="taf-setting-reloadOnSave" ${Settings.get('reloadOnSave') ? 'checked' : ''}> Reload page after saving settings</label>
           </div>
           <div class="taf-setting-item">
             <label>Hotkey (toggle panel)</label>
@@ -348,12 +433,9 @@ TAF.UI = (function() {
     const btnAdd = root.querySelector('#taf-btn-add');
     const btnScan = root.querySelector('#taf-btn-scan');
     const btnRun = root.querySelector('#taf-btn-run');
-    const bulkText = root.querySelector('#taf-bulk-text');
     const settingsBtn = root.querySelector('#taf-settings-btn');
     const btnSaveSettings = modal.querySelector('#taf-save-settings');
     const modalClose = modal.querySelectorAll('.taf-modal-close');
-
-    const getBtn = (id) => root.querySelector(`#${id}`);
 
     // Hotkey capture
     let capturing = false;
@@ -386,27 +468,6 @@ TAF.UI = (function() {
       else Filler.runFill(getAnswersFromUI(entries));
     });
 
-    const parseBtn = getBtn('taf-bulk-parse');
-    if (parseBtn) parseBtn.addEventListener('click', () => parseBulkImport(bulkText, entries));
-    const clearBtn = getBtn('taf-bulk-clear');
-    if (clearBtn) clearBtn.addEventListener('click', () => { entries.innerHTML = ''; addAnswerRow(entries); addAnswerRow(entries); clearLog(); log('Cleared.', 'info'); });
-    const pasteBtn = getBtn('taf-paste-answers');
-    if (pasteBtn) pasteBtn.addEventListener('click', async () => { try { bulkText.value = await navigator.clipboard.readText(); log('✅ Pasted', 'ok'); } catch { log('❌ Failed', 'err'); } });
-    const promptBtn = getBtn('taf-copy-prompt');
-    if (promptBtn) promptBtn.addEventListener('click', async () => { const ok = await copyToClipboard(Settings.get('aiPrompt')); log(ok ? '✅ Prompt copied' : '❌ Failed', ok ? 'ok' : 'err'); });
-    const copyQsBtn = getBtn('taf-copy-questions');
-    if (copyQsBtn) copyQsBtn.addEventListener('click', Scanner.copyAllQuestions);
-    const clearHighlightsBtn = getBtn('taf-clear-highlights');
-    if (clearHighlightsBtn) clearHighlightsBtn.addEventListener('click', () => { document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok')); log('✨ Highlights cleared', 'info'); });
-    const clearAnswersBtn = getBtn('taf-clear-all-answers');
-    if (clearAnswersBtn) clearAnswersBtn.addEventListener('click', () => {
-      document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => { if (i.checked) { i.checked = false; i.dispatchEvent(new Event('change', {bubbles:true})); } });
-      document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(i => { if (i.value) { TAF.Utils.setNativeValue(i, ''); i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); } });
-      document.querySelectorAll('[contenteditable="true"]').forEach(el => { el.innerHTML = ''; el.dispatchEvent(new Event('input', {bubbles:true})); });
-      document.querySelectorAll('select').forEach(sel => { sel.selectedIndex = 0; sel.dispatchEvent(new Event('change', {bubbles:true})); });
-      log('🧹 All answers cleared', 'ok');
-    });
-
     settingsBtn.addEventListener('click', () => modal.classList.remove('hidden'));
     modalClose.forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
 
@@ -422,11 +483,10 @@ TAF.UI = (function() {
     const charDelay = modal.querySelector('#taf-setting-charDelay');
     charCheck.addEventListener('change', () => charDelay.disabled = !charCheck.checked);
 
-    // Save settings
+    // Save settings - fully dynamic, no reload
     btnSaveSettings.addEventListener('click', () => {
       Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
       Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
-      Settings.set('reloadOnSave', modal.querySelector('#taf-setting-reloadOnSave').checked);
       Settings.set('hotkey', modal.querySelector('#taf-setting-hotkey').value.trim() || 'Delete');
       Settings.set('aiPrompt', modal.querySelector('#taf-setting-aiPrompt').value);
 
@@ -452,16 +512,16 @@ TAF.UI = (function() {
       Settings.set('showClearAllAnswers', modal.querySelector('#taf-show-clearAllAnswers').checked);
 
       Settings.applyTheme();
-      modal.classList.add('hidden');
 
-      if (Settings.get('reloadOnSave')) {
-        location.reload();
-      } else {
-        // Apply UI visibility changes without reload
-        document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
-        document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
-        log('Settings saved. Some changes (buttons) may require a manual refresh.', 'info');
-      }
+      // Apply dynamic UI updates
+      document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
+      document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
+      
+      // Rebuild buttons to reflect new visibility settings
+      rebuildBulkButtons(root);
+
+      modal.classList.add('hidden');
+      log('✅ Settings saved and applied.', 'ok');
     });
 
     // First-time tutorial
