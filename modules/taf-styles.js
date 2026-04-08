@@ -291,7 +291,7 @@ TAF.Styles = (function() {
         border-radius: 8px;
       }
 
-      /* Settings Modal Tabs */
+      /* Settings Modal */
       #taf-settings-modal {
         position: fixed;
         inset: 0;
@@ -312,13 +312,40 @@ TAF.Styles = (function() {
         max-width: 90vw;
         padding: 24px;
         box-shadow: 0 30px 50px rgba(0,0,0,0.8);
+        position: relative;
+        overflow: auto;
+        resize: both;
+        min-width: 360px;
+        min-height: 400px;
+      }
+      .taf-modal-resize-handle {
+        position: absolute;
+        bottom: 4px;
+        right: 4px;
+        width: 20px;
+        height: 20px;
+        cursor: nwse-resize;
+        z-index: 10;
+      }
+      .taf-modal-resize-handle::after {
+        content: '';
+        position: absolute;
+        bottom: 3px;
+        right: 3px;
+        width: 8px;
+        height: 8px;
+        border-right: 2px solid rgba(255,255,255,0.3);
+        border-bottom: 2px solid rgba(255,255,255,0.3);
       }
       .taf-modal-header {
         display: flex;
         margin-bottom: 16px;
         border-bottom: 0.5px solid rgba(255,255,255,0.06);
         padding-bottom: 8px;
+        cursor: grab;
+        user-select: none;
       }
+      .taf-modal-header:active { cursor: grabbing; }
       .taf-tab-btn {
         background: none;
         border: none;
