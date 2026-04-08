@@ -1,5 +1,5 @@
 // modules/taf-styles.js
-// toddlesux - Apple-inspired true black theme with CSS variables
+// toddlesux - Apple-inspired true black theme with consistent accent colors
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -15,6 +15,12 @@ TAF.Styles = (function() {
         --taf-accent: #f5a623;
         --taf-bg: #000000;
         --taf-blur: 20px;
+        --taf-text-primary: #ffffff;
+        --taf-text-secondary: rgba(255, 255, 255, 0.6);
+        --taf-text-muted: rgba(255, 255, 255, 0.35);
+        --taf-border: rgba(255, 255, 255, 0.08);
+        --taf-surface: rgba(255, 255, 255, 0.05);
+        --taf-surface-hover: rgba(255, 255, 255, 0.1);
       }
 
       #taf-root * {
@@ -34,6 +40,7 @@ TAF.Styles = (function() {
         transition: opacity 0.2s;
         resize: both;
         overflow: auto;
+        color: var(--taf-text-primary);
       }
       #taf-root.taf-hidden {
         opacity: 0;
@@ -47,7 +54,7 @@ TAF.Styles = (function() {
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(var(--taf-blur)) saturate(180%);
         -webkit-backdrop-filter: blur(var(--taf-blur)) saturate(180%);
-        border: 0.5px solid rgba(255, 255, 255, 0.08);
+        border: 0.5px solid var(--taf-border);
         border-radius: 24px;
         overflow: hidden;
         display: flex;
@@ -75,13 +82,13 @@ TAF.Styles = (function() {
         right: 3px;
         width: 8px;
         height: 8px;
-        border-right: 2px solid rgba(255,255,255,0.3);
-        border-bottom: 2px solid rgba(255,255,255,0.3);
+        border-right: 2px solid var(--taf-text-muted);
+        border-bottom: 2px solid var(--taf-text-muted);
       }
 
       #taf-header {
         background: rgba(20, 20, 20, 0.5);
-        border-bottom: 0.5px solid rgba(255, 255, 255, 0.05);
+        border-bottom: 0.5px solid var(--taf-border);
         padding: 14px 18px;
         display: flex;
         align-items: center;
@@ -98,21 +105,20 @@ TAF.Styles = (function() {
         letter-spacing: -0.01em;
         flex: 1;
       }
-      #taf-logo span { color: rgba(255, 255, 255, 0.5); font-weight: 500; }
+      #taf-logo span { color: var(--taf-text-secondary); font-weight: 500; }
 
       #taf-status-badge {
         font-size: 10px;
         padding: 4px 8px;
         border-radius: 20px;
-        background: rgba(80, 200, 120, 0.15);
-        border: 0.5px solid rgba(80, 200, 120, 0.3);
-        color: #7ec850;
+        background: transparent;
+        border: 1px solid var(--taf-accent);
+        color: var(--taf-accent);
         font-weight: 500;
       }
       #taf-status-badge.inactive {
-        background: rgba(120, 120, 140, 0.1);
-        border-color: rgba(120, 120, 140, 0.2);
-        color: #a0a0b0;
+        border-color: var(--taf-text-muted);
+        color: var(--taf-text-secondary);
       }
 
       #taf-body {
@@ -120,13 +126,13 @@ TAF.Styles = (function() {
         overflow-y: auto;
         padding: 16px 16px 8px;
         scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        scrollbar-color: var(--taf-text-muted) transparent;
       }
 
       .taf-section-label {
         font-size: 11px;
         font-weight: 600;
-        color: rgba(255, 255, 255, 0.4);
+        color: var(--taf-text-muted);
         letter-spacing: 0.3px;
         text-transform: uppercase;
         margin: 18px 0 8px;
@@ -139,10 +145,10 @@ TAF.Styles = (function() {
         margin-bottom: 8px;
       }
       .taf-row input {
-        background: rgba(255, 255, 255, 0.05);
-        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        background: var(--taf-surface);
+        border: 0.5px solid var(--taf-border);
         border-radius: 12px;
-        color: #fff;
+        color: var(--taf-text-primary);
         font-size: 12px;
         padding: 8px 10px;
         outline: none;
@@ -150,14 +156,15 @@ TAF.Styles = (function() {
       }
       .taf-row input:focus {
         border-color: var(--taf-accent);
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--taf-surface-hover);
       }
+      .taf-row input::placeholder { color: var(--taf-text-muted); }
 
       .taf-row .taf-del {
         background: transparent;
-        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        border: 0.5px solid var(--taf-border);
         border-radius: 12px;
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--taf-text-secondary);
         cursor: pointer;
         font-size: 16px;
         width: 28px;
@@ -175,10 +182,10 @@ TAF.Styles = (function() {
 
       #taf-bulk-text {
         width: 100%;
-        background: rgba(255, 255, 255, 0.03);
-        border: 0.5px solid rgba(255, 255, 255, 0.08);
+        background: var(--taf-surface);
+        border: 0.5px solid var(--taf-border);
         border-radius: 14px;
-        color: #fff;
+        color: var(--taf-text-primary);
         font-size: 11px;
         padding: 10px;
         resize: vertical;
@@ -186,6 +193,7 @@ TAF.Styles = (function() {
         margin-bottom: 8px;
       }
       #taf-bulk-text:focus { border-color: var(--taf-accent); }
+      #taf-bulk-text::placeholder { color: var(--taf-text-muted); }
 
       .taf-bulk-buttons {
         display: flex;
@@ -201,14 +209,14 @@ TAF.Styles = (function() {
         cursor: pointer;
         padding: 8px 14px;
         transition: all 0.15s;
-        background: rgba(255, 255, 255, 0.06);
-        border: 0.5px solid rgba(255, 255, 255, 0.08);
-        color: #ddd;
+        background: var(--taf-surface);
+        border: 0.5px solid var(--taf-border);
+        color: var(--taf-text-primary);
         flex: 1 0 auto;
         backdrop-filter: blur(5px);
       }
       .taf-btn:hover {
-        background: rgba(255, 255, 255, 0.12);
+        background: var(--taf-surface-hover);
       }
 
       .taf-btn-row {
@@ -218,24 +226,24 @@ TAF.Styles = (function() {
         margin: 16px 0 8px;
       }
       #taf-btn-scan {
-        background: rgba(255, 255, 255, 0.04);
-        border-color: rgba(255, 255, 255, 0.1);
-        color: #aaa;
+        background: var(--taf-surface);
+        border-color: var(--taf-border);
+        color: var(--taf-text-secondary);
       }
       #taf-btn-run {
         background: var(--taf-accent);
-        color: #000;
+        color: #000000;
         font-weight: 600;
         border: none;
       }
       #taf-btn-run.stop {
         background: #ff5f5f;
-        color: #fff;
+        color: #ffffff;
       }
 
       #taf-log {
-        background: rgba(255, 255, 255, 0.02);
-        border: 0.5px solid rgba(255, 255, 255, 0.05);
+        background: var(--taf-surface);
+        border: 0.5px solid var(--taf-border);
         border-radius: 16px;
         padding: 10px;
         max-height: 150px;
@@ -244,6 +252,7 @@ TAF.Styles = (function() {
         font-size: 11px;
         line-height: 1.6;
         display: none;
+        color: var(--taf-text-secondary);
       }
       #taf-log.visible { display: block; }
       .taf-log-line .taf-tag {
@@ -252,16 +261,17 @@ TAF.Styles = (function() {
         border-radius: 20px;
         font-weight: 500;
       }
-      .taf-ok .taf-tag { background: rgba(80, 200, 120, 0.2); color: #7ec850; }
+      .taf-ok .taf-tag { background: var(--taf-accent); color: #000000; }
       .taf-warn .taf-tag { background: rgba(255, 180, 0, 0.2); color: #ffb400; }
       .taf-err .taf-tag { background: rgba(255, 80, 80, 0.2); color: #ff5f5f; }
       .taf-info .taf-tag { background: rgba(100, 150, 255, 0.2); color: #7ab8ff; }
+      .taf-log-line .taf-msg { color: var(--taf-text-secondary); }
 
       #taf-footer {
         padding: 10px 16px;
-        border-top: 0.5px solid rgba(255, 255, 255, 0.03);
+        border-top: 0.5px solid var(--taf-border);
         font-size: 10px;
-        color: rgba(255, 255, 255, 0.2);
+        color: var(--taf-text-muted);
         text-align: center;
       }
 
@@ -286,7 +296,7 @@ TAF.Styles = (function() {
       .taf-modal-content {
         background: rgba(20, 20, 20, 0.9);
         backdrop-filter: blur(30px);
-        border: 0.5px solid rgba(255,255,255,0.08);
+        border: 0.5px solid var(--taf-border);
         border-radius: 28px;
         width: 420px;
         max-width: 90vw;
@@ -296,23 +306,28 @@ TAF.Styles = (function() {
       .taf-modal-header {
         display: flex;
         margin-bottom: 16px;
-        border-bottom: 0.5px solid rgba(255,255,255,0.06);
+        border-bottom: 0.5px solid var(--taf-border);
         padding-bottom: 8px;
       }
       .taf-tab-btn {
         background: none;
         border: none;
-        color: #888;
+        color: var(--taf-text-muted);
         font-size: 13px;
         font-weight: 500;
         padding: 8px 12px;
         cursor: pointer;
         border-radius: 20px;
         margin-right: 4px;
+        transition: all 0.15s;
+      }
+      .taf-tab-btn:hover {
+        background: var(--taf-surface);
+        color: var(--taf-text-primary);
       }
       .taf-tab-btn.active {
-        background: rgba(255,255,255,0.08);
-        color: var(--taf-accent);
+        background: var(--taf-accent);
+        color: #000000;
       }
       .taf-tab-pane { display: none; }
       .taf-tab-pane.active { display: block; }
@@ -322,7 +337,7 @@ TAF.Styles = (function() {
         display: flex;
         align-items: center;
         gap: 10px;
-        color: #ddd;
+        color: var(--taf-text-primary);
         font-size: 13px;
         cursor: pointer;
       }
@@ -331,12 +346,18 @@ TAF.Styles = (function() {
         accent-color: var(--taf-accent);
       }
       .taf-setting-item input[type="number"],
-      .taf-setting-item input[type="text"] {
-        background: rgba(255,255,255,0.05);
-        border: 0.5px solid rgba(255,255,255,0.1);
+      .taf-setting-item input[type="text"],
+      .taf-setting-item textarea {
+        background: var(--taf-surface);
+        border: 0.5px solid var(--taf-border);
         border-radius: 10px;
-        color: #fff;
+        color: var(--taf-text-primary);
         padding: 6px 10px;
+      }
+      .taf-setting-item input:focus,
+      .taf-setting-item textarea:focus {
+        border-color: var(--taf-accent);
+        outline: none;
       }
       .taf-color-picker {
         display: flex;
@@ -346,9 +367,40 @@ TAF.Styles = (function() {
       }
       .taf-color-picker input[type="color"] {
         width: 40px; height: 40px;
-        border: none;
+        border: 0.5px solid var(--taf-border);
+        border-radius: 8px;
         background: transparent;
         cursor: pointer;
+        padding: 2px;
+      }
+      .taf-color-picker span {
+        color: var(--taf-text-secondary);
+        font-size: 13px;
+      }
+      .taf-range-row {
+        color: var(--taf-text-muted);
+      }
+      .taf-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .taf-modal-footer .taf-btn {
+        background: var(--taf-accent);
+        color: #000000;
+        font-weight: 600;
+      }
+      .taf-modal-close {
+        background: none;
+        border: none;
+        color: var(--taf-text-muted);
+        font-size: 20px;
+        cursor: pointer;
+        transition: color 0.15s;
+      }
+      .taf-modal-close:hover {
+        color: var(--taf-text-primary);
       }
 
       /* Tutorial overlay */
@@ -365,7 +417,7 @@ TAF.Styles = (function() {
       .taf-tutorial-card {
         background: rgba(30,30,30,0.9);
         backdrop-filter: blur(20px);
-        border: 0.5px solid rgba(255,255,255,0.1);
+        border: 0.5px solid var(--taf-border);
         border-radius: 32px;
         padding: 32px;
         max-width: 500px;
@@ -376,12 +428,32 @@ TAF.Styles = (function() {
         margin: 0 0 16px;
       }
       .taf-tutorial-card p {
-        color: #ddd;
+        color: var(--taf-text-primary);
         line-height: 1.6;
         margin-bottom: 20px;
       }
+      .taf-tutorial-card strong {
+        color: var(--taf-accent);
+      }
       .taf-tutorial-card .taf-btn {
         margin: 0 8px;
+      }
+      .taf-tutorial-card .taf-btn:last-child {
+        background: var(--taf-accent);
+        color: #000000;
+      }
+
+      #taf-settings-btn {
+        background: transparent;
+        border: none;
+        color: var(--taf-text-secondary);
+        cursor: pointer;
+        font-size: 18px;
+        padding: 0 4px;
+        transition: color 0.15s;
+      }
+      #taf-settings-btn:hover {
+        color: var(--taf-accent);
       }
     `);
   };
