@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      0.0.211111
-// @description  Auto-fills Toddle forms with human-like delays, sub-question support, settings & emergency hide
+// @version      0.0.155555
+// @description  Auto-fills Toddle forms with human-like delays, ChatGPT integration, and sleek UI
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
 // @match        https://*.toddleapp.com/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @downloadURL  https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/taf-core.user.js
+// @updateURL    https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/taf-core.user.js
 // @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-utils.js
 // @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-styles.js
 // @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-settings.js
@@ -21,18 +23,16 @@
 (function() {
   'use strict';
 
-  // Dynamic hotkey toggle (uses saved setting, defaults to 'Delete')
   document.addEventListener('keydown', (e) => {
     if (!window.TAF || !TAF.Settings) return;
     const hotkey = TAF.Settings.get('hotkey') || 'Delete';
-    // Normalize case and handle special keys like 'Delete', 'Escape', 'F1', etc.
-    if (e.key === hotkey || e.code === hotkey || e.key.toLowerCase() === hotkey.toLowerCase()) {
+    if (e.key === hotkey || e.code === hotkey) {
       e.preventDefault();
       const root = document.getElementById('taf-root');
       if (root) {
         root.classList.toggle('taf-emergency-hidden');
         if (TAF.Utils) {
-          TAF.Utils.log(root.classList.contains('taf-emergency-hidden') ? 'Panel hidden (press ' + hotkey + ' to show)' : 'Panel shown', 'info');
+          TAF.Utils.log(root.classList.contains('taf-emergency-hidden') ? 'Panel hidden' : 'Panel shown', 'info');
         }
       }
     }
@@ -40,7 +40,7 @@
 
   function init() {
     if (typeof window.TAF === 'undefined' || !TAF.UI) {
-      console.error('[toddlesux] Modules not loaded. Check @require paths.');
+      console.error('[toddlesux] Modules not loaded.');
       return;
     }
     TAF.UI.buildSidebar();
