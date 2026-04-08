@@ -215,7 +215,7 @@ TAF.Styles = (function() {
         transition: all .15s;
         letter-spacing: .05em;
         background: #1a1a2a;
-        border: 1px dashed #3a3a5a;
+        border: 1px solid #3a3a5a;   /* changed from dashed to solid */
         color: #6a6a9a;
       }
       #taf-btn-add {
