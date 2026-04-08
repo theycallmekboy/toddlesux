@@ -116,10 +116,6 @@ TAF.UI = (function() {
     const showLogPanel = Settings.get('showLogPanel');
 
     root.innerHTML = `
-      <div id="taf-tab">
-        <div id="taf-tab-dot"></div>
-        FILL
-      </div>
       <div id="taf-panel">
         <div id="taf-header">
           <div id="taf-logo">toddle<span>sux</span></div>
@@ -141,6 +137,7 @@ TAF.UI = (function() {
             <div class="taf-bulk-buttons">
               <button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>
               <button class="taf-btn" id="taf-bulk-clear">Clear All</button>
+              <button class="taf-btn" id="taf-paste-answers">📋 Paste</button>
               <button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>
               <button class="taf-btn" id="taf-copy-questions">📄 Copy Questions</button>
             </div>
@@ -154,12 +151,44 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.1 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.2 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
 
-    // Settings modal (unchanged but ensure it includes all new settings)
+    // Draggable header
+    const header = root.querySelector('#taf-header');
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    header.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button')) return;
+      isDragging = true;
+      const rect = root.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = rect.left;
+      startTop = rect.top;
+      root.style.transition = 'none';
+      root.style.right = 'auto';
+      root.style.transform = 'none';
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      root.style.left = (startLeft + dx) + 'px';
+      root.style.top = (startTop + dy) + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+      root.style.transition = '';
+    });
+
+    // Settings modal
     const modal = document.createElement('div');
     modal.id = 'taf-settings-modal';
     modal.className = 'hidden';
@@ -232,7 +261,6 @@ TAF.UI = (function() {
     document.body.appendChild(modal);
 
     // Elements
-    const tab = root.querySelector('#taf-tab');
     const entries = root.querySelector('#taf-entries');
     const btnAdd = root.querySelector('#taf-btn-add');
     const btnScan = root.querySelector('#taf-btn-scan');
@@ -240,6 +268,7 @@ TAF.UI = (function() {
     const bulkText = root.querySelector('#taf-bulk-text');
     const btnParse = root.querySelector('#taf-bulk-parse');
     const btnClear = root.querySelector('#taf-bulk-clear');
+    const btnPaste = root.querySelector('#taf-paste-answers');
     const btnCopyPrompt = root.querySelector('#taf-copy-prompt');
     const btnCopyQuestions = root.querySelector('#taf-copy-questions');
     const settingsBtn = root.querySelector('#taf-settings-btn');
@@ -265,16 +294,31 @@ TAF.UI = (function() {
     }
 
     // Event listeners
-    tab.addEventListener('click', () => root.classList.toggle('taf-hidden'));
     btnAdd.addEventListener('click', () => addAnswerRow(entries));
     btnScan.addEventListener('click', Scanner.scanPage);
-    btnRun.addEventListener('click', () => Filler.runFill(getAnswersFromUI(entries)));
+    btnRun.addEventListener('click', () => {
+      if (Filler.isRunning()) {
+        Filler.stopFill();
+      } else {
+        const answers = getAnswersFromUI(entries);
+        Filler.runFill(answers);
+      }
+    });
     btnParse.addEventListener('click', () => parseBulkImport(bulkText, entries));
     btnClear.addEventListener('click', () => {
       entries.innerHTML = '';
       addAnswerRow(entries); addAnswerRow(entries);
       clearLog();
       log('Answer rows cleared.', 'info');
+    });
+    btnPaste.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        bulkText.value = text;
+        log('✅ Pasted from clipboard', 'ok');
+      } catch (err) {
+        log('❌ Failed to read clipboard', 'err');
+      }
     });
     btnCopyPrompt.addEventListener('click', async () => {
       const success = await copyToClipboard(Settings.get('aiPrompt'));
