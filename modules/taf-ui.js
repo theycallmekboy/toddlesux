@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with theming and tabbed settings
+// toddlesux - Apple-inspired UI with theming, tabs, resizing, and tutorial
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -13,6 +13,7 @@ TAF.UI = (function() {
   const Filler = TAF.Filler;
 
   const PRESET_ANSWERS = {};
+  const TUTORIAL_SHOWN_KEY = 'taf_tutorial_shown';
 
   function parseBulkImport(textarea, entriesContainer) {
     const raw = textarea.value.trim();
@@ -115,7 +116,6 @@ TAF.UI = (function() {
     const showAnswerRows = Settings.get('showAnswerRows');
     const showLogPanel = Settings.get('showLogPanel');
 
-    // Apply theme on load
     Settings.applyTheme();
 
     root.innerHTML = `
@@ -149,7 +149,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.5 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.6 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -171,14 +171,44 @@ TAF.UI = (function() {
     row1.innerHTML = buttons1.join('');
     row2.innerHTML = buttons2.join('');
 
+    // Resize handle
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'taf-resize-handle';
+    root.querySelector('#taf-panel').appendChild(resizeHandle);
+
+    let isResizing = false;
+    let startX, startY, startWidth, startHeight;
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startWidth = root.offsetWidth;
+      startHeight = root.offsetHeight;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const newWidth = Math.max(280, startWidth + dx);
+      const newHeight = Math.max(400, startHeight + dy);
+      root.style.width = newWidth + 'px';
+      root.style.height = newHeight + 'px';
+    });
+
+    window.addEventListener('mouseup', () => { isResizing = false; });
+
     // Draggable header
     const header = root.querySelector('#taf-header');
-    let isDragging = false, startX, startY, startLeft, startTop;
+    let isDragging = false, dragStartX, dragStartY, startLeft, startTop;
     header.addEventListener('mousedown', (e) => {
       if (e.target.closest('button')) return;
       isDragging = true;
       const rect = root.getBoundingClientRect();
-      startX = e.clientX; startY = e.clientY;
+      dragStartX = e.clientX; dragStartY = e.clientY;
       startLeft = rect.left; startTop = rect.top;
       root.style.transition = 'none';
       root.style.right = 'auto'; root.style.transform = 'none';
@@ -186,8 +216,8 @@ TAF.UI = (function() {
     });
     window.addEventListener('mousemove', (e) => {
       if (!isDragging) return;
-      root.style.left = (startLeft + e.clientX - startX) + 'px';
-      root.style.top = (startTop + e.clientY - startY) + 'px';
+      root.style.left = (startLeft + e.clientX - dragStartX) + 'px';
+      root.style.top = (startTop + e.clientY - dragStartY) + 'px';
     });
     window.addEventListener('mouseup', () => { isDragging = false; root.style.transition = ''; });
 
@@ -212,6 +242,9 @@ TAF.UI = (function() {
           </div>
           <div class="taf-setting-item">
             <label><input type="checkbox" id="taf-setting-showLog" ${Settings.get('showLogPanel') ? 'checked' : ''}> Show log panel</label>
+          </div>
+          <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-reloadOnSave" ${Settings.get('reloadOnSave') ? 'checked' : ''}> Reload page after saving settings</label>
           </div>
           <div class="taf-setting-item">
             <label>Hotkey (toggle panel)</label>
@@ -267,7 +300,7 @@ TAF.UI = (function() {
             </div>
           </div>
           <div class="taf-setting-item">
-            <label>Background color (true black recommended)</label>
+            <label>Background color</label>
             <div class="taf-color-picker">
               <input type="color" id="taf-setting-bgColor" value="${Settings.get('backgroundColor')}">
               <span style="color:#aaa;">${Settings.get('backgroundColor')}</span>
@@ -320,7 +353,6 @@ TAF.UI = (function() {
     const btnSaveSettings = modal.querySelector('#taf-save-settings');
     const modalClose = modal.querySelectorAll('.taf-modal-close');
 
-    // Dynamic buttons (may not exist)
     const getBtn = (id) => root.querySelector(`#${id}`);
 
     // Hotkey capture
@@ -394,6 +426,7 @@ TAF.UI = (function() {
     btnSaveSettings.addEventListener('click', () => {
       Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
       Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
+      Settings.set('reloadOnSave', modal.querySelector('#taf-setting-reloadOnSave').checked);
       Settings.set('hotkey', modal.querySelector('#taf-setting-hotkey').value.trim() || 'Delete');
       Settings.set('aiPrompt', modal.querySelector('#taf-setting-aiPrompt').value);
 
@@ -420,10 +453,37 @@ TAF.UI = (function() {
 
       Settings.applyTheme();
       modal.classList.add('hidden');
-      log('Settings saved. Refresh to see all UI changes.', 'ok');
-      // Reload UI to reflect button visibility changes
-      setTimeout(() => location.reload(), 500);
+
+      if (Settings.get('reloadOnSave')) {
+        location.reload();
+      } else {
+        // Apply UI visibility changes without reload
+        document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
+        document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
+        log('Settings saved. Some changes (buttons) may require a manual refresh.', 'info');
+      }
     });
+
+    // First-time tutorial
+    if (!GM_getValue(TUTORIAL_SHOWN_KEY, false)) {
+      const tutorial = document.createElement('div');
+      tutorial.id = 'taf-tutorial-overlay';
+      tutorial.innerHTML = `
+        <div class="taf-tutorial-card">
+          <h2>👋 Welcome to toddlesux</h2>
+          <p>Auto‑fill Toddle forms with human‑like delays.<br>
+          <strong>Drag</strong> the header to move, <strong>resize</strong> from the bottom‑right corner.<br>
+          Press <strong>${Settings.get('hotkey')}</strong> to hide/show.<br>
+          Use <strong>Bulk Import</strong> after pasting answers from AI.</p>
+          <button class="taf-btn" id="taf-tutorial-skip">Skip</button>
+          <button class="taf-btn" id="taf-tutorial-gotit" style="background:var(--taf-accent); color:#000;">Got it</button>
+        </div>
+      `;
+      document.body.appendChild(tutorial);
+      const closeTutorial = () => { tutorial.remove(); GM_setValue(TUTORIAL_SHOWN_KEY, true); };
+      tutorial.querySelector('#taf-tutorial-skip').addEventListener('click', closeTutorial);
+      tutorial.querySelector('#taf-tutorial-gotit').addEventListener('click', closeTutorial);
+    }
   }
 
   return { buildSidebar, addAnswerRow, getAnswersFromUI };
