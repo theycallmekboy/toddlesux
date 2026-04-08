@@ -108,10 +108,17 @@ TAF.Filler = (function() {
         const txt = item.textContent.trim().toLowerCase();
         if (txt.includes(firstAnsLo) || firstAnsLo.includes(txt)) {
           const input = item.querySelector('input[type="radio"], input[type="checkbox"]');
-          if (input && !input.checked) input.click();
-          else item.click();
+          if (input) {
+            if (!input.checked) {
+              input.click();
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          } else {
+            item.click();
+          }
           highlight(item);
           log(`Multiple‑choice → "${firstAns}" (${label.slice(0,30)})`, 'ok');
+          await sleep(300); // Stabilization delay for React
           await sleep(Settings.get('questionDelay') || 0);
           return true;
         }
@@ -124,10 +131,13 @@ TAF.Filler = (function() {
       const labelEl = r.labels?.[0] || r.closest('label') || r.parentElement;
       const lTxt = (labelEl?.textContent || r.value || '').trim().toLowerCase();
       if (lTxt.includes(firstAnsLo) || firstAnsLo.includes(lTxt)) {
-        if (!r.checked) r.click();
-        r.dispatchEvent(new Event('change', { bubbles: true }));
+        if (!r.checked) {
+          r.click();
+          r.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         highlight(labelEl || r);
         log(`Radio/Check → "${firstAns}" (${label.slice(0,30)})`, 'ok');
+        await sleep(300);
         await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
@@ -145,6 +155,7 @@ TAF.Filler = (function() {
         pill.click();
         highlight(pill);
         log(`Option → "${firstAns}" (${label.slice(0,30)})`, 'ok');
+        await sleep(300);
         await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
@@ -162,6 +173,7 @@ TAF.Filler = (function() {
         sel.dispatchEvent(new Event('input',  { bubbles: true }));
         highlight(sel);
         log(`Dropdown → "${match.text}" (${label.slice(0,30)})`, 'ok');
+        await sleep(300);
         await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
