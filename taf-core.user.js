@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      4.3
+// @version      4.4
 // @description  Auto-fills Toddle forms with human-like delays, sub-question support, settings & emergency hide
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
