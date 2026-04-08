@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with dynamic settings, close button, and disabled buttons tab
+// toddlesux - Apple-inspired UI with dynamic settings, close button, functional Disabled tab, and resizable modal
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -15,18 +15,19 @@ TAF.UI = (function() {
   const PRESET_ANSWERS = {};
   const TUTORIAL_SHOWN_KEY = 'taf_tutorial_shown';
 
-  // Button config for the Disabled tab
   const BUTTON_CONFIG = [
-    { id: 'showParseAdd', label: 'Parse & Add' },
-    { id: 'showClearAll', label: 'Clear All' },
-    { id: 'showPaste', label: 'Paste' },
-    { id: 'showAiPrompt', label: 'AI Prompt' },
-    { id: 'showCopyQuestions', label: 'Copy Questions' },
-    { id: 'showClearHighlights', label: 'Clear Highlights' },
-    { id: 'showClearAllAnswers', label: 'Clear All Answers' }
+    { id: 'showParseAdd', label: 'Parse & Add', action: 'parse' },
+    { id: 'showClearAll', label: 'Clear All', action: 'clearEntries' },
+    { id: 'showPaste', label: '📋 Paste', action: 'paste' },
+    { id: 'showAiPrompt', label: '📋 AI Prompt', action: 'copyPrompt' },
+    { id: 'showCopyQuestions', label: '📄 Copy Questions', action: 'copyQuestions' },
+    { id: 'showClearHighlights', label: '✨ Clear Highlights', action: 'clearHighlights' },
+    { id: 'showClearAllAnswers', label: '🧹 Clear All Answers', action: 'clearAllAnswers' }
   ];
 
-  // Rebuild the bulk button rows based on current settings
+  let currentRoot = null;
+  let currentEntries = null;
+
   function rebuildBulkButtons(root) {
     const row1 = root.querySelector('#taf-bulk-buttons-row1');
     const row2 = root.querySelector('#taf-bulk-buttons-row2');
@@ -49,120 +50,121 @@ TAF.UI = (function() {
     attachBulkButtonListeners(root);
   }
 
-  // Refresh the Disabled tab content
-  function refreshDisabledTab(modal) {
+  function executeAction(actionType, root, entries, bulkText) {
+    switch (actionType) {
+      case 'parse':
+        parseBulkImport(bulkText, entries);
+        break;
+      case 'clearEntries':
+        entries.innerHTML = '';
+        addAnswerRow(entries); addAnswerRow(entries);
+        clearLog();
+        log('Answer rows cleared.', 'info');
+        break;
+      case 'paste':
+        navigator.clipboard.readText().then(text => {
+          bulkText.value = text;
+          log('✅ Pasted from clipboard', 'ok');
+        }).catch(() => log('❌ Failed to read clipboard', 'err'));
+        break;
+      case 'copyPrompt':
+        copyToClipboard(Settings.get('aiPrompt')).then(ok => {
+          log(ok ? '✅ AI prompt copied!' : '❌ Failed to copy', ok ? 'ok' : 'err');
+        });
+        break;
+      case 'copyQuestions':
+        Scanner.copyAllQuestions();
+        break;
+      case 'clearHighlights':
+        document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
+        log('✨ Highlights cleared', 'info');
+        break;
+      case 'clearAllAnswers':
+        document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => { if (i.checked) { i.checked = false; i.dispatchEvent(new Event('change', {bubbles:true})); } });
+        document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(i => { if (i.value) { TAF.Utils.setNativeValue(i, ''); i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); } });
+        document.querySelectorAll('[contenteditable="true"]').forEach(el => { el.innerHTML = ''; el.dispatchEvent(new Event('input', {bubbles:true})); });
+        document.querySelectorAll('select').forEach(sel => { sel.selectedIndex = 0; sel.dispatchEvent(new Event('change', {bubbles:true})); });
+        log('🧹 All answers cleared', 'ok');
+        break;
+    }
+  }
+
+  function refreshDisabledTab(modal, root, entries, bulkText) {
     const container = modal.querySelector('#taf-disabled-buttons-list');
     if (!container) return;
 
-    const disabledButtons = BUTTON_CONFIG.filter(cfg => !Settings.get(cfg.id));
+    const disabledConfigs = BUTTON_CONFIG.filter(cfg => !Settings.get(cfg.id));
     
-    if (disabledButtons.length === 0) {
-      container.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">All buttons are enabled ✨</p>';
+    if (disabledConfigs.length === 0) {
+      container.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">All buttons are visible ✨</p>';
       return;
     }
 
     let html = '';
-    disabledButtons.forEach(cfg => {
+    disabledConfigs.forEach(cfg => {
       html += `
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:12px;">
-          <span style="color:#ddd;">${cfg.label}</span>
-          <button class="taf-btn" data-enable="${cfg.id}" style="padding:4px 12px; flex:0;">Enable</button>
-        </div>
+        <button class="taf-btn disabled-tab-btn" data-action="${cfg.action}" style="width:100%; margin-bottom:8px; justify-content:center;">
+          ${cfg.label}
+        </button>
       `;
     });
     container.innerHTML = html;
 
-    // Attach enable handlers
-    container.querySelectorAll('[data-enable]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.enable;
-        Settings.set(id, true);
-        // Update the corresponding checkbox in the Buttons tab
-        const chk = modal.querySelector(`#taf-${id.replace('show', 'show-').replace(/([A-Z])/g, '-$1').toLowerCase()}`);
-        if (chk) chk.checked = true;
-        refreshDisabledTab(modal);
-        rebuildBulkButtons(document.getElementById('taf-root'));
-        log(`✅ ${btn.closest('div').querySelector('span').textContent} enabled.`, 'ok');
+    container.querySelectorAll('.disabled-tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        executeAction(action, root, entries, bulkText);
       });
     });
   }
 
-  // Attach event listeners to bulk buttons
   function attachBulkButtonListeners(root) {
     const entries = root.querySelector('#taf-entries');
     const bulkText = root.querySelector('#taf-bulk-text');
 
     const parseBtn = root.querySelector('#taf-bulk-parse');
     if (parseBtn) {
-      parseBtn.removeEventListener('click', parseBulkImportHandler);
-      parseBtn.addEventListener('click', () => parseBulkImport(bulkText, entries));
+      parseBtn.replaceWith(parseBtn.cloneNode(true));
+      root.querySelector('#taf-bulk-parse').addEventListener('click', () => executeAction('parse', root, entries, bulkText));
     }
 
     const clearBtn = root.querySelector('#taf-bulk-clear');
     if (clearBtn) {
-      clearBtn.removeEventListener('click', clearEntriesHandler);
-      clearBtn.addEventListener('click', () => {
-        entries.innerHTML = '';
-        addAnswerRow(entries); addAnswerRow(entries);
-        clearLog();
-        log('Answer rows cleared.', 'info');
-      });
+      clearBtn.replaceWith(clearBtn.cloneNode(true));
+      root.querySelector('#taf-bulk-clear').addEventListener('click', () => executeAction('clearEntries', root, entries, bulkText));
     }
 
     const pasteBtn = root.querySelector('#taf-paste-answers');
     if (pasteBtn) {
-      pasteBtn.removeEventListener('click', pasteHandler);
-      pasteBtn.addEventListener('click', async () => {
-        try {
-          bulkText.value = await navigator.clipboard.readText();
-          log('✅ Pasted from clipboard', 'ok');
-        } catch { log('❌ Failed to read clipboard', 'err'); }
-      });
+      pasteBtn.replaceWith(pasteBtn.cloneNode(true));
+      root.querySelector('#taf-paste-answers').addEventListener('click', () => executeAction('paste', root, entries, bulkText));
     }
 
     const promptBtn = root.querySelector('#taf-copy-prompt');
     if (promptBtn) {
-      promptBtn.removeEventListener('click', copyPromptHandler);
-      promptBtn.addEventListener('click', async () => {
-        const ok = await copyToClipboard(Settings.get('aiPrompt'));
-        log(ok ? '✅ AI prompt copied!' : '❌ Failed to copy', ok ? 'ok' : 'err');
-      });
+      promptBtn.replaceWith(promptBtn.cloneNode(true));
+      root.querySelector('#taf-copy-prompt').addEventListener('click', () => executeAction('copyPrompt', root, entries, bulkText));
     }
 
     const copyQsBtn = root.querySelector('#taf-copy-questions');
     if (copyQsBtn) {
-      copyQsBtn.removeEventListener('click', Scanner.copyAllQuestions);
-      copyQsBtn.addEventListener('click', Scanner.copyAllQuestions);
+      copyQsBtn.replaceWith(copyQsBtn.cloneNode(true));
+      root.querySelector('#taf-copy-questions').addEventListener('click', () => executeAction('copyQuestions', root, entries, bulkText));
     }
 
     const clearHighlightsBtn = root.querySelector('#taf-clear-highlights');
     if (clearHighlightsBtn) {
-      clearHighlightsBtn.removeEventListener('click', clearHighlightsHandler);
-      clearHighlightsBtn.addEventListener('click', () => {
-        document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
-        log('✨ Highlights cleared', 'info');
-      });
+      clearHighlightsBtn.replaceWith(clearHighlightsBtn.cloneNode(true));
+      root.querySelector('#taf-clear-highlights').addEventListener('click', () => executeAction('clearHighlights', root, entries, bulkText));
     }
 
     const clearAnswersBtn = root.querySelector('#taf-clear-all-answers');
     if (clearAnswersBtn) {
-      clearAnswersBtn.removeEventListener('click', clearAllAnswersHandler);
-      clearAnswersBtn.addEventListener('click', () => {
-        document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => { if (i.checked) { i.checked = false; i.dispatchEvent(new Event('change', {bubbles:true})); } });
-        document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(i => { if (i.value) { TAF.Utils.setNativeValue(i, ''); i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); } });
-        document.querySelectorAll('[contenteditable="true"]').forEach(el => { el.innerHTML = ''; el.dispatchEvent(new Event('input', {bubbles:true})); });
-        document.querySelectorAll('select').forEach(sel => { sel.selectedIndex = 0; sel.dispatchEvent(new Event('change', {bubbles:true})); });
-        log('🧹 All answers cleared', 'ok');
-      });
+      clearAnswersBtn.replaceWith(clearAnswersBtn.cloneNode(true));
+      root.querySelector('#taf-clear-all-answers').addEventListener('click', () => executeAction('clearAllAnswers', root, entries, bulkText));
     }
   }
-
-  function parseBulkImportHandler() {}
-  function clearEntriesHandler() {}
-  function pasteHandler() {}
-  function copyPromptHandler() {}
-  function clearHighlightsHandler() {}
-  function clearAllAnswersHandler() {}
 
   function parseBulkImport(textarea, entriesContainer) {
     const raw = textarea.value.trim();
@@ -261,6 +263,7 @@ TAF.UI = (function() {
     const root = document.createElement('div');
     root.id = 'taf-root';
     root.classList.add('taf-hidden');
+    currentRoot = root;
 
     const showAnswerRows = Settings.get('showAnswerRows');
     const showLogPanel = Settings.get('showLogPanel');
@@ -299,15 +302,18 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v4.8 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v4.9 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
 
-    // Initial button build
+    const entries = root.querySelector('#taf-entries');
+    const bulkText = root.querySelector('#taf-bulk-text');
+    currentEntries = entries;
+
     rebuildBulkButtons(root);
 
-    // Resize handle
+    // Resize handle for main panel
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'taf-resize-handle';
     root.querySelector('#taf-panel').appendChild(resizeHandle);
@@ -337,7 +343,7 @@ TAF.UI = (function() {
 
     window.addEventListener('mouseup', () => { isResizing = false; });
 
-    // Draggable header
+    // Draggable main panel header
     const header = root.querySelector('#taf-header');
     let isDragging = false, dragStartX, dragStartY, startLeft, startTop;
     header.addEventListener('mousedown', (e) => {
@@ -357,7 +363,7 @@ TAF.UI = (function() {
     });
     window.addEventListener('mouseup', () => { isDragging = false; root.style.transition = ''; });
 
-    // Settings modal with tabs (now includes "Disabled" tab)
+    // Settings modal
     const modal = document.createElement('div');
     modal.id = 'taf-settings-modal';
     modal.className = 'hidden';
@@ -457,9 +463,9 @@ TAF.UI = (function() {
           <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-clearAllAnswers" ${Settings.get('showClearAllAnswers') ? 'checked' : ''}> Clear All Answers</label></div>
         </div>
 
-        <!-- Disabled Tab (lists hidden buttons with Enable option) -->
+        <!-- Disabled Tab -->
         <div class="taf-tab-pane" data-tab="disabled">
-          <p style="color:#aaa; font-size:12px; margin-bottom:16px;">Hidden buttons – click Enable to show them.</p>
+          <p style="color:#aaa; font-size:12px; margin-bottom:16px;">Hidden buttons – click to use them directly.</p>
           <div id="taf-disabled-buttons-list"></div>
         </div>
 
@@ -470,8 +476,74 @@ TAF.UI = (function() {
     `;
     document.body.appendChild(modal);
 
-    // Refresh disabled tab on modal open
-    refreshDisabledTab(modal);
+    // Modal dragging
+    const modalHeader = modal.querySelector('.taf-modal-header');
+    let isModalDragging = false;
+    let modalStartX, modalStartY, modalStartLeft, modalStartTop;
+
+    modalHeader.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button')) return;
+      isModalDragging = true;
+      const rect = modal.getBoundingClientRect();
+      modalStartX = e.clientX;
+      modalStartY = e.clientY;
+      modalStartLeft = rect.left;
+      modalStartTop = rect.top;
+      modal.style.transition = 'none';
+      modal.style.position = 'fixed';
+      modal.style.left = modalStartLeft + 'px';
+      modal.style.top = modalStartTop + 'px';
+      modal.style.right = 'auto';
+      modal.style.bottom = 'auto';
+      modal.style.transform = 'none';
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isModalDragging) return;
+      const dx = e.clientX - modalStartX;
+      const dy = e.clientY - modalStartY;
+      modal.style.left = (modalStartLeft + dx) + 'px';
+      modal.style.top = (modalStartTop + dy) + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isModalDragging = false;
+      modal.style.transition = '';
+    });
+
+    // Modal resizing
+    const modalContent = modal.querySelector('.taf-modal-content');
+    const modalResizeHandle = document.createElement('div');
+    modalResizeHandle.className = 'taf-modal-resize-handle';
+    modalContent.appendChild(modalResizeHandle);
+
+    let isModalResizing = false;
+    let resizeStartX, resizeStartY, startModalWidth, startModalHeight;
+
+    modalResizeHandle.addEventListener('mousedown', (e) => {
+      isModalResizing = true;
+      resizeStartX = e.clientX;
+      resizeStartY = e.clientY;
+      startModalWidth = modal.offsetWidth;
+      startModalHeight = modal.offsetHeight;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isModalResizing) return;
+      const dx = e.clientX - resizeStartX;
+      const dy = e.clientY - resizeStartY;
+      const newWidth = Math.max(360, startModalWidth + dx);
+      const newHeight = Math.max(400, startModalHeight + dy);
+      modal.style.width = newWidth + 'px';
+      modal.style.height = newHeight + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isModalResizing = false;
+    });
 
     // Tab switching
     const tabBtns = modal.querySelectorAll('.taf-tab-btn');
@@ -483,12 +555,13 @@ TAF.UI = (function() {
         panes.forEach(p => p.classList.remove('active'));
         btn.classList.add('active');
         modal.querySelector(`.taf-tab-pane[data-tab="${tab}"]`).classList.add('active');
-        if (tab === 'disabled') refreshDisabledTab(modal);
+        if (tab === 'disabled') {
+          refreshDisabledTab(modal, root, entries, bulkText);
+        }
       });
     });
 
     // Elements
-    const entries = root.querySelector('#taf-entries');
     const btnAdd = root.querySelector('#taf-btn-add');
     const btnScan = root.querySelector('#taf-btn-scan');
     const btnRun = root.querySelector('#taf-btn-run');
@@ -528,7 +601,10 @@ TAF.UI = (function() {
       else Filler.runFill(getAnswersFromUI(entries));
     });
 
-    settingsBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+    settingsBtn.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      refreshDisabledTab(modal, root, entries, bulkText);
+    });
     closeBtn.addEventListener('click', () => {
       root.classList.add('taf-emergency-hidden');
       log('Panel closed. Press ' + Settings.get('hotkey') + ' to reopen.', 'info');
@@ -547,7 +623,7 @@ TAF.UI = (function() {
     const charDelay = modal.querySelector('#taf-setting-charDelay');
     charCheck.addEventListener('change', () => charDelay.disabled = !charCheck.checked);
 
-    // Save settings - fully dynamic
+    // Save settings
     btnSaveSettings.addEventListener('click', () => {
       Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
       Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
@@ -581,7 +657,7 @@ TAF.UI = (function() {
       document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
       
       rebuildBulkButtons(root);
-      refreshDisabledTab(modal);
+      refreshDisabledTab(modal, root, entries, bulkText);
       modal.classList.add('hidden');
       log('✅ Settings saved and applied.', 'ok');
     });
