@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with multi-AI support, auto-parse, and reset
+// toddlesux - Clean UI with auto-parse, toasts, and fluid animations
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -7,7 +7,7 @@ window.TAF = window.TAF || {};
 TAF.UI = (function() {
   'use strict';
 
-  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI } = TAF.Utils;
+  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI, toast } = TAF.Utils;
   const Settings = TAF.Settings;
   const Scanner = TAF.Scanner;
   const Filler = TAF.Filler;
@@ -16,7 +16,6 @@ TAF.UI = (function() {
   const TUTORIAL_SHOWN_KEY = 'taf_tutorial_shown';
 
   const BUTTON_CONFIG = [
-    { id: 'showParseAdd', label: 'Parse & Add', action: 'parse' },
     { id: 'showClearAll', label: 'Clear All', action: 'clearEntries' },
     { id: 'showPaste', label: '📋 Paste', action: 'paste' },
     { id: 'showAiPrompt', label: '📋 AI Prompt', action: 'copyPrompt' },
@@ -37,7 +36,6 @@ TAF.UI = (function() {
     const buttons1 = [];
     const buttons2 = [];
 
-    if (Settings.get('showParseAdd')) buttons1.push('<button class="taf-btn" id="taf-bulk-parse">Parse & Add</button>');
     if (Settings.get('showClearAll')) buttons1.push('<button class="taf-btn" id="taf-bulk-clear">Clear All</button>');
     if (Settings.get('showPaste')) buttons1.push('<button class="taf-btn" id="taf-paste-answers">📋 Paste</button>');
     if (Settings.get('showAiPrompt')) buttons1.push('<button class="taf-btn" id="taf-copy-prompt">📋 AI Prompt</button>');
@@ -53,24 +51,21 @@ TAF.UI = (function() {
 
   function executeAction(actionType, root, entries, bulkText) {
     switch (actionType) {
-      case 'parse':
-        parseBulkImport(bulkText, entries);
-        break;
       case 'clearEntries':
         entries.innerHTML = '';
         addAnswerRow(entries); addAnswerRow(entries);
         clearLog();
-        log('Answer rows cleared.', 'info');
+        toast('Answer rows cleared', 'info');
         break;
       case 'paste':
         navigator.clipboard.readText().then(text => {
           bulkText.value = text;
-          // Auto-parse will trigger via input event
-        }).catch(() => log('❌ Failed to read clipboard', 'err'));
+          toast('Pasted from clipboard', 'success');
+        }).catch(() => toast('Failed to read clipboard', 'error'));
         break;
       case 'copyPrompt':
         copyToClipboard(Settings.get('aiPrompt')).then(ok => {
-          log(ok ? '✅ AI prompt copied!' : '❌ Failed to copy', ok ? 'ok' : 'err');
+          if (ok) toast('AI prompt copied', 'success');
         });
         break;
       case 'copyQuestions':
@@ -78,14 +73,14 @@ TAF.UI = (function() {
         break;
       case 'clearHighlights':
         document.querySelectorAll('.taf-filled-ok').forEach(el => el.classList.remove('taf-filled-ok'));
-        log('✨ Highlights cleared', 'info');
+        toast('Highlights cleared', 'info');
         break;
       case 'clearAllAnswers':
         document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(i => { if (i.checked) { i.checked = false; i.dispatchEvent(new Event('change', {bubbles:true})); } });
         document.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea').forEach(i => { if (i.value) { TAF.Utils.setNativeValue(i, ''); i.dispatchEvent(new Event('input', {bubbles:true})); i.dispatchEvent(new Event('change', {bubbles:true})); } });
         document.querySelectorAll('[contenteditable="true"]').forEach(el => { el.innerHTML = ''; el.dispatchEvent(new Event('input', {bubbles:true})); });
         document.querySelectorAll('select').forEach(sel => { sel.selectedIndex = 0; sel.dispatchEvent(new Event('change', {bubbles:true})); });
-        log('🧹 All answers cleared', 'ok');
+        toast('All answers cleared', 'success');
         break;
     }
   }
@@ -124,12 +119,6 @@ TAF.UI = (function() {
     const entries = root.querySelector('#taf-entries');
     const bulkText = root.querySelector('#taf-bulk-text');
 
-    const parseBtn = root.querySelector('#taf-bulk-parse');
-    if (parseBtn) {
-      parseBtn.replaceWith(parseBtn.cloneNode(true));
-      root.querySelector('#taf-bulk-parse').addEventListener('click', () => executeAction('parse', root, entries, bulkText));
-    }
-
     const clearBtn = root.querySelector('#taf-bulk-clear');
     if (clearBtn) {
       clearBtn.replaceWith(clearBtn.cloneNode(true));
@@ -167,9 +156,9 @@ TAF.UI = (function() {
     }
   }
 
-  function parseBulkImport(textarea, entriesContainer) {
+  function parseBulkImport(textarea, entriesContainer, silent = false) {
     const raw = textarea.value.trim();
-    if (!raw) return; // Silent ignore for auto-parse
+    if (!raw) return;
 
     const lines = raw.split('\n');
     const parsed = [];
@@ -219,8 +208,11 @@ TAF.UI = (function() {
       added++;
     }
 
-    log(`✅ Auto-parsed ${added} answer(s).`, 'ok');
-    setStatus(`${added} LOADED`, true);
+    if (!silent) {
+      toast(`✅ Parsed ${added} answers`, 'success');
+      log(`Auto-parsed ${added} answer(s).`, 'ok');
+      setStatus(`${added} LOADED`, true);
+    }
   }
 
   function addAnswerRow(container, key = '', value = '') {
@@ -279,7 +271,7 @@ TAF.UI = (function() {
             <button class="taf-btn" id="taf-btn-add">+ Add row</button>
           </div>
 
-          <div class="taf-section-label">Bulk Import (auto-parses)</div>
+          <div class="taf-section-label">Answer Import</div>
           <div id="taf-bulk-area">
             <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs... (auto-parses)"></textarea>
             <div class="taf-bulk-buttons" id="taf-bulk-buttons-row1"></div>
@@ -303,7 +295,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v5.3 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v5.4 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -330,7 +322,7 @@ TAF.UI = (function() {
     btnAISend.addEventListener('click', async () => {
       const questions = aiQuestions.value.trim();
       if (!questions) {
-        log('Paste questions first.', 'warn');
+        toast('Paste questions first', 'error');
         return;
       }
 
@@ -343,7 +335,7 @@ TAF.UI = (function() {
       else if (provider === 'groq') hasKey = !!Settings.get('groqApiKey');
 
       if (!hasKey) {
-        log(`❌ ${provider} API key/token not set. Add it in Settings → General.`, 'err');
+        toast(`${provider} API key not set`, 'error');
         return;
       }
 
@@ -362,9 +354,10 @@ TAF.UI = (function() {
       if (aiAnswers) {
         bulkText.value = aiAnswers;
         parseBulkImport(bulkText, entries);
-        log('✅ AI answers loaded automatically!', 'ok');
+        toast('AI answers loaded!', 'success');
         setStatus('AI READY', true);
       } else {
+        toast('AI request failed', 'error');
         setStatus('ERROR', false);
       }
     });
@@ -443,7 +436,7 @@ TAF.UI = (function() {
             <label><input type="checkbox" id="taf-setting-showLog" ${Settings.get('showLogPanel') ? 'checked' : ''}> Show log panel</label>
           </div>
           <div class="taf-setting-item">
-            <label><input type="checkbox" id="taf-setting-showAI" ${Settings.get('showAISection') ? 'checked' : ''}> Show AI Assistant section</label>
+            <label><input type="checkbox" id="taf-setting-showAI" ${Settings.get('showAISection') ? 'checked' : ''}> Show AI Assistant</label>
           </div>
           <div class="taf-setting-item">
             <label>Hotkey (toggle panel)</label>
@@ -469,11 +462,11 @@ TAF.UI = (function() {
           <div id="taf-ai-openai" style="display:${Settings.get('aiProvider') === 'openai' ? 'block' : 'none'};">
             <div class="taf-setting-item">
               <label>OpenAI API Key</label>
-              <input type="password" id="taf-setting-openaiKey" value="${escHtml(Settings.get('openaiApiKey'))}" placeholder="sk-..." style="width:100%; margin-top:6px;">
+              <input type="password" id="taf-setting-openaiKey" value="${escHtml(Settings.get('openaiApiKey'))}" placeholder="sk-..." style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
             <div class="taf-setting-item">
               <label>Model</label>
-              <input type="text" id="taf-setting-openaiModel" value="${escHtml(Settings.get('openaiModel'))}" placeholder="gpt-4o-mini" style="width:100%;">
+              <input type="text" id="taf-setting-openaiModel" value="${escHtml(Settings.get('openaiModel'))}" placeholder="gpt-4o-mini" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
           </div>
 
@@ -481,11 +474,11 @@ TAF.UI = (function() {
           <div id="taf-ai-gemini" style="display:${Settings.get('aiProvider') === 'gemini' ? 'block' : 'none'};">
             <div class="taf-setting-item">
               <label>Gemini API Key</label>
-              <input type="password" id="taf-setting-geminiKey" value="${escHtml(Settings.get('geminiApiKey'))}" placeholder="AIza..." style="width:100%; margin-top:6px;">
+              <input type="password" id="taf-setting-geminiKey" value="${escHtml(Settings.get('geminiApiKey'))}" placeholder="AIza..." style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
             <div class="taf-setting-item">
               <label>Model</label>
-              <input type="text" id="taf-setting-geminiModel" value="${escHtml(Settings.get('geminiModel'))}" placeholder="gemini-2.0-flash" style="width:100%;">
+              <input type="text" id="taf-setting-geminiModel" value="${escHtml(Settings.get('geminiModel'))}" placeholder="gemini-2.0-flash" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
           </div>
 
@@ -493,11 +486,11 @@ TAF.UI = (function() {
           <div id="taf-ai-claude" style="display:${Settings.get('aiProvider') === 'claude' ? 'block' : 'none'};">
             <div class="taf-setting-item">
               <label>Claude API Key</label>
-              <input type="password" id="taf-setting-claudeKey" value="${escHtml(Settings.get('claudeApiKey'))}" placeholder="sk-ant-..." style="width:100%; margin-top:6px;">
+              <input type="password" id="taf-setting-claudeKey" value="${escHtml(Settings.get('claudeApiKey'))}" placeholder="sk-ant-..." style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
             <div class="taf-setting-item">
               <label>Model</label>
-              <input type="text" id="taf-setting-claudeModel" value="${escHtml(Settings.get('claudeModel'))}" placeholder="claude-3-haiku-20240307" style="width:100%;">
+              <input type="text" id="taf-setting-claudeModel" value="${escHtml(Settings.get('claudeModel'))}" placeholder="claude-3-haiku-20240307" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
           </div>
 
@@ -505,11 +498,11 @@ TAF.UI = (function() {
           <div id="taf-ai-github" style="display:${Settings.get('aiProvider') === 'github' ? 'block' : 'none'};">
             <div class="taf-setting-item">
               <label>GitHub Token</label>
-              <input type="password" id="taf-setting-githubToken" value="${escHtml(Settings.get('githubToken'))}" placeholder="ghp_..." style="width:100%; margin-top:6px;">
+              <input type="password" id="taf-setting-githubToken" value="${escHtml(Settings.get('githubToken'))}" placeholder="ghp_..." style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
             <div class="taf-setting-item">
               <label>Model</label>
-              <input type="text" id="taf-setting-githubModel" value="${escHtml(Settings.get('githubModel'))}" placeholder="gpt-4o" style="width:100%;">
+              <input type="text" id="taf-setting-githubModel" value="${escHtml(Settings.get('githubModel'))}" placeholder="gpt-4o" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
           </div>
 
@@ -517,11 +510,11 @@ TAF.UI = (function() {
           <div id="taf-ai-groq" style="display:${Settings.get('aiProvider') === 'groq' ? 'block' : 'none'};">
             <div class="taf-setting-item">
               <label>Groq API Key</label>
-              <input type="password" id="taf-setting-groqKey" value="${escHtml(Settings.get('groqApiKey'))}" placeholder="gsk_..." style="width:100%; margin-top:6px;">
+              <input type="password" id="taf-setting-groqKey" value="${escHtml(Settings.get('groqApiKey'))}" placeholder="gsk_..." style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
             <div class="taf-setting-item">
               <label>Model</label>
-              <input type="text" id="taf-setting-groqModel" value="${escHtml(Settings.get('groqModel'))}" placeholder="llama-3.3-70b-versatile" style="width:100%;">
+              <input type="text" id="taf-setting-groqModel" value="${escHtml(Settings.get('groqModel'))}" placeholder="llama-3.3-70b-versatile" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
             </div>
           </div>
 
@@ -589,9 +582,8 @@ TAF.UI = (function() {
           </div>
         </div>
 
-        <!-- Buttons Tab -->
+        <!-- Buttons Tab (Parse & Add removed) -->
         <div class="taf-tab-pane" data-tab="buttons">
-          <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-parseAdd" ${Settings.get('showParseAdd') ? 'checked' : ''}> Parse & Add</label></div>
           <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-clearAll" ${Settings.get('showClearAll') ? 'checked' : ''}> Clear All</label></div>
           <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-paste" ${Settings.get('showPaste') ? 'checked' : ''}> Paste</label></div>
           <div class="taf-setting-item"><label><input type="checkbox" id="taf-show-aiPrompt" ${Settings.get('showAiPrompt') ? 'checked' : ''}> AI Prompt</label></div>
@@ -636,12 +628,12 @@ TAF.UI = (function() {
         GM_setValue(TUTORIAL_SHOWN_KEY, false);
         Settings.applyTheme();
         modal.classList.add('hidden');
-        log('✅ Settings reset. Reloading...', 'ok');
+        toast('Settings reset. Reloading...', 'info');
         setTimeout(() => location.reload(), 500);
       }
     });
 
-    // Modal dragging & resizing (same)
+    // Modal dragging & resizing
     const modalHeader = modal.querySelector('.taf-modal-header');
     let isModalDragging = false;
     let modalStartX, modalStartY, modalStartLeft, modalStartTop;
@@ -769,7 +761,7 @@ TAF.UI = (function() {
     });
     closeBtn.addEventListener('click', () => {
       root.classList.add('taf-emergency-hidden');
-      log('Panel closed. Press ' + Settings.get('hotkey') + ' to reopen.', 'info');
+      toast(`Panel closed. Press ${Settings.get('hotkey')} to reopen.`, 'info');
     });
     modalClose.forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
 
@@ -819,7 +811,6 @@ TAF.UI = (function() {
       Settings.set('backgroundColor', modal.querySelector('#taf-setting-bgColor').value);
       Settings.set('blurIntensity', parseInt(modal.querySelector('#taf-setting-blur').value, 10) || 20);
 
-      Settings.set('showParseAdd', modal.querySelector('#taf-show-parseAdd').checked);
       Settings.set('showClearAll', modal.querySelector('#taf-show-clearAll').checked);
       Settings.set('showPaste', modal.querySelector('#taf-show-paste').checked);
       Settings.set('showAiPrompt', modal.querySelector('#taf-show-aiPrompt').checked);
@@ -836,7 +827,7 @@ TAF.UI = (function() {
       rebuildBulkButtons(root);
       refreshDisabledTab(modal, root, entries, bulkText);
       modal.classList.add('hidden');
-      log('✅ Settings saved.', 'ok');
+      toast('Settings saved', 'success');
     });
 
     // First-time tutorial
