@@ -23,16 +23,16 @@ TAF.Settings = (function() {
     // General UI
     showAnswerRows: true,
     showLogPanel: true,
-    showAISection: true,        // NEW: toggle AI section
+    showAISection: true,
     hotkey: 'Delete',
 
     // Theme
-    accentColor: '#f5a623',
+    accentColor: '#ff3b30',        // Apple red
     backgroundColor: '#000000',
     blurIntensity: 20,
 
     // Button visibility
-    showParseAdd: true,
+    showParseAdd: false,           // auto-parse now, hide button by default
     showClearAll: true,
     showPaste: true,
     showAiPrompt: true,
@@ -41,9 +41,9 @@ TAF.Settings = (function() {
     showClearAllAnswers: true,
 
     // AI Provider
-    aiProvider: 'openai',        // 'openai', 'gemini', 'claude', 'github', 'groq'
+    aiProvider: 'openai',
     
-    // API Keys (stored separately per provider)
+    // API Keys
     openaiApiKey: '',
     geminiApiKey: '',
     claudeApiKey: '',
