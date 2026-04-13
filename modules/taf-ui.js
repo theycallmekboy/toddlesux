@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with multi-AI support, auto-fill, and reset
+// toddlesux - Apple-inspired UI with multi-AI support, auto-parse, and reset
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -27,6 +27,7 @@ TAF.UI = (function() {
 
   let currentRoot = null;
   let currentEntries = null;
+  let parseDebounceTimer = null;
 
   function rebuildBulkButtons(root) {
     const row1 = root.querySelector('#taf-bulk-buttons-row1');
@@ -64,7 +65,7 @@ TAF.UI = (function() {
       case 'paste':
         navigator.clipboard.readText().then(text => {
           bulkText.value = text;
-          log('✅ Pasted from clipboard', 'ok');
+          // Auto-parse will trigger via input event
         }).catch(() => log('❌ Failed to read clipboard', 'err'));
         break;
       case 'copyPrompt':
@@ -168,10 +169,7 @@ TAF.UI = (function() {
 
   function parseBulkImport(textarea, entriesContainer) {
     const raw = textarea.value.trim();
-    if (!raw) {
-      log('Paste some Q&A pairs first.', 'warn');
-      return;
-    }
+    if (!raw) return; // Silent ignore for auto-parse
 
     const lines = raw.split('\n');
     const parsed = [];
@@ -210,15 +208,9 @@ TAF.UI = (function() {
           }
         }
       }
-      if (!matched) {
-        log(`Skipped line: "${trimmed.slice(0, 40)}"`, 'warn');
-      }
     }
 
-    if (parsed.length === 0) {
-      log('No valid Q&A pairs found. Use format "Q1: answer" or "1. answer".', 'warn');
-      return;
-    }
+    if (parsed.length === 0) return;
 
     entriesContainer.innerHTML = '';
     let added = 0;
@@ -227,9 +219,8 @@ TAF.UI = (function() {
       added++;
     }
 
-    log(`✅ Imported ${added} answer(s).`, 'ok');
+    log(`✅ Auto-parsed ${added} answer(s).`, 'ok');
     setStatus(`${added} LOADED`, true);
-    textarea.value = '';
   }
 
   function addAnswerRow(container, key = '', value = '') {
@@ -288,9 +279,9 @@ TAF.UI = (function() {
             <button class="taf-btn" id="taf-btn-add">+ Add row</button>
           </div>
 
-          <div class="taf-section-label">Bulk Import</div>
+          <div class="taf-section-label">Bulk Import (auto-parses)</div>
           <div id="taf-bulk-area">
-            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs..."></textarea>
+            <textarea id="taf-bulk-text" placeholder="Paste Q&A pairs... (auto-parses)"></textarea>
             <div class="taf-bulk-buttons" id="taf-bulk-buttons-row1"></div>
             <div class="taf-bulk-buttons" id="taf-bulk-buttons-row2" style="margin-top:6px;"></div>
           </div>
@@ -312,7 +303,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v5.2 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v5.3 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -321,9 +312,17 @@ TAF.UI = (function() {
     const bulkText = root.querySelector('#taf-bulk-text');
     currentEntries = entries;
 
+    // Auto-parse on input (debounced)
+    bulkText.addEventListener('input', () => {
+      clearTimeout(parseDebounceTimer);
+      parseDebounceTimer = setTimeout(() => {
+        parseBulkImport(bulkText, entries);
+      }, 500);
+    });
+
     rebuildBulkButtons(root);
 
-    // AI elements (simplified: auto-fill on success)
+    // AI elements
     const aiQuestions = root.querySelector('#taf-ai-questions');
     const aiOutput = root.querySelector('#taf-ai-output');
     const btnAISend = root.querySelector('#taf-ai-send');
@@ -361,7 +360,6 @@ TAF.UI = (function() {
       btnAISend.textContent = 'Send to AI';
       
       if (aiAnswers) {
-        // Auto-fill: directly parse into answer rows and bulk text
         bulkText.value = aiAnswers;
         parseBulkImport(bulkText, entries);
         log('✅ AI answers loaded automatically!', 'ok');
@@ -742,7 +740,7 @@ TAF.UI = (function() {
     captureBtn.addEventListener('click', () => {
       capturing = true;
       hotkeyInput.value = 'Press any key...';
-      hotkeyInput.style.background = 'rgba(245,166,35,0.2)';
+      hotkeyInput.style.background = 'rgba(255,59,48,0.2)';
     });
     const keyHandler = (e) => {
       if (!capturing) return;
