@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with ChatGPT integration
+// toddlesux - Apple-inspired UI with multi-AI support and optional AI section
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -7,7 +7,7 @@ window.TAF = window.TAF || {};
 TAF.UI = (function() {
   'use strict';
 
-  const { log, clearLog, setStatus, copyToClipboard, escHtml, callOpenAI } = TAF.Utils;
+  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI } = TAF.Utils;
   const Settings = TAF.Settings;
   const Scanner = TAF.Scanner;
   const Filler = TAF.Filler;
@@ -267,6 +267,7 @@ TAF.UI = (function() {
 
     const showAnswerRows = Settings.get('showAnswerRows');
     const showLogPanel = Settings.get('showLogPanel');
+    const showAISection = Settings.get('showAISection');
 
     Settings.applyTheme();
 
@@ -294,15 +295,15 @@ TAF.UI = (function() {
             <div class="taf-bulk-buttons" id="taf-bulk-buttons-row2" style="margin-top:6px;"></div>
           </div>
 
-          <!-- ChatGPT Section -->
-          <div id="taf-chatgpt-section">
-            <div class="taf-section-label">🤖 ChatGPT</div>
-            <textarea id="taf-chatgpt-questions" placeholder="Paste your questions here..."></textarea>
-            <div class="taf-chatgpt-buttons">
-              <button class="taf-btn" id="taf-chatgpt-send">Send to ChatGPT</button>
-              <button class="taf-btn" id="taf-chatgpt-parse">Parse & Fill</button>
+          <!-- AI Section -->
+          <div id="taf-ai-section" style="display: ${showAISection ? 'block' : 'none'};">
+            <div class="taf-section-label">🤖 AI Assistant</div>
+            <textarea id="taf-ai-questions" placeholder="Paste your questions here..."></textarea>
+            <div class="taf-ai-buttons">
+              <button class="taf-btn" id="taf-ai-send">Send to AI</button>
+              <button class="taf-btn" id="taf-ai-parse">Parse & Fill</button>
             </div>
-            <div id="taf-chatgpt-output" placeholder="AI answers will appear here..."></div>
+            <div id="taf-ai-output" placeholder="AI answers will appear here..."></div>
           </div>
 
           <div class="taf-btn-row">
@@ -313,7 +314,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v5.0 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v5.1 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -324,38 +325,45 @@ TAF.UI = (function() {
 
     rebuildBulkButtons(root);
 
-    // ChatGPT elements
-    const chatQuestions = root.querySelector('#taf-chatgpt-questions');
-    const chatOutput = root.querySelector('#taf-chatgpt-output');
-    const btnSend = root.querySelector('#taf-chatgpt-send');
-    const btnParseAI = root.querySelector('#taf-chatgpt-parse');
+    // AI elements
+    const aiQuestions = root.querySelector('#taf-ai-questions');
+    const aiOutput = root.querySelector('#taf-ai-output');
+    const btnAISend = root.querySelector('#taf-ai-send');
+    const btnAIParse = root.querySelector('#taf-ai-parse');
 
     let aiAnswers = '';
 
-    btnSend.addEventListener('click', async () => {
-      const questions = chatQuestions.value.trim();
+    btnAISend.addEventListener('click', async () => {
+      const questions = aiQuestions.value.trim();
       if (!questions) {
         log('Paste questions first.', 'warn');
         return;
       }
 
-      const apiKey = Settings.get('openaiApiKey');
-      if (!apiKey) {
-        log('❌ OpenAI API key not set. Add it in Settings → General.', 'err');
+      const provider = Settings.get('aiProvider');
+      let hasKey = false;
+      if (provider === 'openai') hasKey = !!Settings.get('openaiApiKey');
+      else if (provider === 'gemini') hasKey = !!Settings.get('geminiApiKey');
+      else if (provider === 'claude') hasKey = !!Settings.get('claudeApiKey');
+      else if (provider === 'github') hasKey = !!Settings.get('githubToken');
+      else if (provider === 'groq') hasKey = !!Settings.get('groqApiKey');
+
+      if (!hasKey) {
+        log(`❌ ${provider} API key/token not set. Add it in Settings → General.`, 'err');
         return;
       }
 
       setStatus('THINKING', true);
-      btnSend.disabled = true;
-      btnSend.textContent = 'Thinking...';
-      chatOutput.textContent = '';
+      btnAISend.disabled = true;
+      btnAISend.textContent = 'Thinking...';
+      aiOutput.textContent = '';
 
-      aiAnswers = await callOpenAI(questions, (chunk, full) => {
-        chatOutput.textContent = full;
+      aiAnswers = await callAI(questions, (chunk, full) => {
+        aiOutput.textContent = full;
       });
 
-      btnSend.disabled = false;
-      btnSend.textContent = 'Send to ChatGPT';
+      btnAISend.disabled = false;
+      btnAISend.textContent = 'Send to AI';
       if (aiAnswers) {
         log('✅ AI answers received! Click "Parse & Fill" to use them.', 'ok');
         setStatus('AI READY', true);
@@ -364,9 +372,9 @@ TAF.UI = (function() {
       }
     });
 
-    btnParseAI.addEventListener('click', () => {
+    btnAIParse.addEventListener('click', () => {
       if (!aiAnswers) {
-        log('No AI answers yet. Click "Send to ChatGPT" first.', 'warn');
+        log('No AI answers yet. Click "Send to AI" first.', 'warn');
         return;
       }
       bulkText.value = aiAnswers;
@@ -448,20 +456,88 @@ TAF.UI = (function() {
             <label><input type="checkbox" id="taf-setting-showLog" ${Settings.get('showLogPanel') ? 'checked' : ''}> Show log panel</label>
           </div>
           <div class="taf-setting-item">
+            <label><input type="checkbox" id="taf-setting-showAI" ${Settings.get('showAISection') ? 'checked' : ''}> Show AI Assistant section</label>
+          </div>
+          <div class="taf-setting-item">
             <label>Hotkey (toggle panel)</label>
             <div style="display:flex; gap:8px; margin-top:6px;">
               <input type="text" id="taf-setting-hotkey" value="${escHtml(Settings.get('hotkey'))}" readonly style="flex:1; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
               <button class="taf-btn" id="taf-capture-hotkey" style="flex:0;">Press key</button>
             </div>
           </div>
+          
+          <!-- AI Provider Selection -->
           <div class="taf-setting-item">
-            <label>OpenAI API Key</label>
-            <input type="password" id="taf-setting-openaiKey" value="${escHtml(Settings.get('openaiApiKey'))}" placeholder="sk-..." style="width:100%; margin-top:6px;">
+            <label>AI Provider</label>
+            <select id="taf-setting-aiProvider" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.05); border:0.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; padding:8px;">
+              <option value="openai" ${Settings.get('aiProvider') === 'openai' ? 'selected' : ''}>OpenAI (ChatGPT)</option>
+              <option value="gemini" ${Settings.get('aiProvider') === 'gemini' ? 'selected' : ''}>Google Gemini</option>
+              <option value="claude" ${Settings.get('aiProvider') === 'claude' ? 'selected' : ''}>Anthropic Claude</option>
+              <option value="github" ${Settings.get('aiProvider') === 'github' ? 'selected' : ''}>GitHub Models</option>
+              <option value="groq" ${Settings.get('aiProvider') === 'groq' ? 'selected' : ''}>Groq</option>
+            </select>
           </div>
-          <div class="taf-setting-item">
-            <label>AI Model</label>
-            <input type="text" id="taf-setting-aiModel" value="${escHtml(Settings.get('aiModel'))}" placeholder="gpt-4o-mini" style="width:100%; margin-top:6px;">
+
+          <!-- OpenAI Settings -->
+          <div id="taf-ai-openai" style="display:${Settings.get('aiProvider') === 'openai' ? 'block' : 'none'};">
+            <div class="taf-setting-item">
+              <label>OpenAI API Key</label>
+              <input type="password" id="taf-setting-openaiKey" value="${escHtml(Settings.get('openaiApiKey'))}" placeholder="sk-..." style="width:100%; margin-top:6px;">
+            </div>
+            <div class="taf-setting-item">
+              <label>Model</label>
+              <input type="text" id="taf-setting-openaiModel" value="${escHtml(Settings.get('openaiModel'))}" placeholder="gpt-4o-mini" style="width:100%;">
+            </div>
           </div>
+
+          <!-- Gemini Settings -->
+          <div id="taf-ai-gemini" style="display:${Settings.get('aiProvider') === 'gemini' ? 'block' : 'none'};">
+            <div class="taf-setting-item">
+              <label>Gemini API Key</label>
+              <input type="password" id="taf-setting-geminiKey" value="${escHtml(Settings.get('geminiApiKey'))}" placeholder="AIza..." style="width:100%; margin-top:6px;">
+            </div>
+            <div class="taf-setting-item">
+              <label>Model</label>
+              <input type="text" id="taf-setting-geminiModel" value="${escHtml(Settings.get('geminiModel'))}" placeholder="gemini-2.0-flash" style="width:100%;">
+            </div>
+          </div>
+
+          <!-- Claude Settings -->
+          <div id="taf-ai-claude" style="display:${Settings.get('aiProvider') === 'claude' ? 'block' : 'none'};">
+            <div class="taf-setting-item">
+              <label>Claude API Key</label>
+              <input type="password" id="taf-setting-claudeKey" value="${escHtml(Settings.get('claudeApiKey'))}" placeholder="sk-ant-..." style="width:100%; margin-top:6px;">
+            </div>
+            <div class="taf-setting-item">
+              <label>Model</label>
+              <input type="text" id="taf-setting-claudeModel" value="${escHtml(Settings.get('claudeModel'))}" placeholder="claude-3-haiku-20240307" style="width:100%;">
+            </div>
+          </div>
+
+          <!-- GitHub Models Settings -->
+          <div id="taf-ai-github" style="display:${Settings.get('aiProvider') === 'github' ? 'block' : 'none'};">
+            <div class="taf-setting-item">
+              <label>GitHub Token</label>
+              <input type="password" id="taf-setting-githubToken" value="${escHtml(Settings.get('githubToken'))}" placeholder="ghp_..." style="width:100%; margin-top:6px;">
+            </div>
+            <div class="taf-setting-item">
+              <label>Model</label>
+              <input type="text" id="taf-setting-githubModel" value="${escHtml(Settings.get('githubModel'))}" placeholder="gpt-4o" style="width:100%;">
+            </div>
+          </div>
+
+          <!-- Groq Settings -->
+          <div id="taf-ai-groq" style="display:${Settings.get('aiProvider') === 'groq' ? 'block' : 'none'};">
+            <div class="taf-setting-item">
+              <label>Groq API Key</label>
+              <input type="password" id="taf-setting-groqKey" value="${escHtml(Settings.get('groqApiKey'))}" placeholder="gsk_..." style="width:100%; margin-top:6px;">
+            </div>
+            <div class="taf-setting-item">
+              <label>Model</label>
+              <input type="text" id="taf-setting-groqModel" value="${escHtml(Settings.get('groqModel'))}" placeholder="llama-3.3-70b-versatile" style="width:100%;">
+            </div>
+          </div>
+
           <div class="taf-setting-item">
             <label>AI Prompt</label>
             <textarea id="taf-setting-aiPrompt" style="width:100%; height:120px; margin-top:6px; background:rgba(255,255,255,0.03); border:0.5px solid rgba(255,255,255,0.08); border-radius:12px; color:#fff; padding:10px; font-size:11px; resize:vertical;">${escHtml(Settings.get('aiPrompt'))}</textarea>
@@ -545,7 +621,22 @@ TAF.UI = (function() {
     `;
     document.body.appendChild(modal);
 
-    // Modal dragging & resizing (same as before)
+    // AI provider dropdown toggle
+    const providerSelect = modal.querySelector('#taf-setting-aiProvider');
+    const panels = {
+      openai: modal.querySelector('#taf-ai-openai'),
+      gemini: modal.querySelector('#taf-ai-gemini'),
+      claude: modal.querySelector('#taf-ai-claude'),
+      github: modal.querySelector('#taf-ai-github'),
+      groq: modal.querySelector('#taf-ai-groq')
+    };
+
+    providerSelect.addEventListener('change', () => {
+      const val = providerSelect.value;
+      Object.keys(panels).forEach(k => { if (panels[k]) panels[k].style.display = k === val ? 'block' : 'none'; });
+    });
+
+    // Modal dragging & resizing
     const modalHeader = modal.querySelector('.taf-modal-header');
     let isModalDragging = false;
     let modalStartX, modalStartY, modalStartLeft, modalStartTop;
@@ -695,9 +786,21 @@ TAF.UI = (function() {
     btnSaveSettings.addEventListener('click', () => {
       Settings.set('showAnswerRows', modal.querySelector('#taf-setting-showAnswers').checked);
       Settings.set('showLogPanel', modal.querySelector('#taf-setting-showLog').checked);
+      Settings.set('showAISection', modal.querySelector('#taf-setting-showAI').checked);
       Settings.set('hotkey', modal.querySelector('#taf-setting-hotkey').value.trim() || 'Delete');
+      Settings.set('aiProvider', providerSelect.value);
+      
       Settings.set('openaiApiKey', modal.querySelector('#taf-setting-openaiKey').value.trim());
-      Settings.set('aiModel', modal.querySelector('#taf-setting-aiModel').value.trim() || 'gpt-4o-mini');
+      Settings.set('openaiModel', modal.querySelector('#taf-setting-openaiModel').value.trim() || 'gpt-4o-mini');
+      Settings.set('geminiApiKey', modal.querySelector('#taf-setting-geminiKey').value.trim());
+      Settings.set('geminiModel', modal.querySelector('#taf-setting-geminiModel').value.trim() || 'gemini-2.0-flash');
+      Settings.set('claudeApiKey', modal.querySelector('#taf-setting-claudeKey').value.trim());
+      Settings.set('claudeModel', modal.querySelector('#taf-setting-claudeModel').value.trim() || 'claude-3-haiku-20240307');
+      Settings.set('githubToken', modal.querySelector('#taf-setting-githubToken').value.trim());
+      Settings.set('githubModel', modal.querySelector('#taf-setting-githubModel').value.trim() || 'gpt-4o');
+      Settings.set('groqApiKey', modal.querySelector('#taf-setting-groqKey').value.trim());
+      Settings.set('groqModel', modal.querySelector('#taf-setting-groqModel').value.trim() || 'llama-3.3-70b-versatile');
+      
       Settings.set('aiPrompt', modal.querySelector('#taf-setting-aiPrompt').value);
 
       Settings.set('enableRandomDelays', delayCheck.checked);
@@ -725,6 +828,7 @@ TAF.UI = (function() {
 
       document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
       document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
+      document.getElementById('taf-ai-section').style.display = Settings.get('showAISection') ? 'block' : 'none';
       
       rebuildBulkButtons(root);
       refreshDisabledTab(modal, root, entries, bulkText);
@@ -742,7 +846,7 @@ TAF.UI = (function() {
           <p>Auto‑fill Toddle forms with human‑like delays.<br>
           <strong>Drag</strong> the header to move, <strong>resize</strong> from the bottom‑right corner.<br>
           Press <strong>${Settings.get('hotkey')}</strong> to hide/show.<br>
-          Use <strong>ChatGPT</strong> section to get AI answers automatically.</p>
+          Use <strong>AI Assistant</strong> to get answers from ChatGPT, Gemini, Claude, and more.</p>
           <button class="taf-btn" id="taf-tutorial-skip">Skip</button>
           <button class="taf-btn" id="taf-tutorial-gotit" style="background:var(--taf-accent); color:#000;">Got it</button>
         </div>
