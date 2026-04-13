@@ -291,13 +291,13 @@ TAF.Styles = (function() {
         border-radius: 8px;
       }
 
-      /* ChatGPT Panel */
-      #taf-chatgpt-section {
+      /* ai Panel */
+      #taf-ai-section {
         margin-top: 16px;
         border-top: 0.5px solid rgba(255,255,255,0.05);
         padding-top: 12px;
       }
-      #taf-chatgpt-questions {
+      #taf-ai-questions {
         width: 100%;
         background: rgba(255, 255, 255, 0.03);
         border: 0.5px solid rgba(255, 255, 255, 0.08);
@@ -309,7 +309,7 @@ TAF.Styles = (function() {
         min-height: 100px;
         margin-bottom: 8px;
       }
-      #taf-chatgpt-output {
+      #taf-ai-output {
         width: 100%;
         background: rgba(0, 0, 0, 0.3);
         border: 0.5px solid rgba(255, 255, 255, 0.05);
@@ -323,7 +323,7 @@ TAF.Styles = (function() {
         white-space: pre-wrap;
         margin-bottom: 8px;
       }
-      .taf-chatgpt-buttons {
+      .taf-ai-buttons {
         display: flex;
         gap: 6px;
       }
