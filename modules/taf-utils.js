@@ -1,5 +1,5 @@
 // modules/taf-utils.js
-// toddlesux - Utility functions with multi-AI provider support
+// toddlesux - Utility functions with multi-AI provider support and toasts
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -16,6 +16,31 @@ TAF.Utils = (function() {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+  // Toast container
+  let toastContainer = null;
+  function getToastContainer() {
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.id = 'taf-toast-container';
+      document.body.appendChild(toastContainer);
+    }
+    return toastContainer;
+  }
+
+  function toast(message, type = 'info', duration = 3000) {
+    const container = getToastContainer();
+    const toast = document.createElement('div');
+    toast.className = `taf-toast ${type}`;
+    const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+    toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span> ${escHtml(message)}`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('hiding');
+      setTimeout(() => toast.remove(), 200);
+    }, duration);
+  }
+
   const log = (msg, type = 'info') => {
     const el = document.getElementById('taf-log');
     if (!el) return;
@@ -26,6 +51,9 @@ TAF.Utils = (function() {
     line.innerHTML = `<span class="taf-tag">${tagMap[type] || 'INFO'}</span><span class="taf-msg">${escHtml(msg)}</span>`;
     el.appendChild(line);
     el.scrollTop = el.scrollHeight;
+    // Also show toast for important messages
+    if (type === 'ok') toast(msg, 'success', 2000);
+    else if (type === 'err') toast(msg, 'error', 4000);
   };
 
   const clearLog = () => {
@@ -58,6 +86,7 @@ TAF.Utils = (function() {
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
+      toast('Copied to clipboard', 'success');
       return true;
     } catch (err) {
       const textarea = document.createElement('textarea');
@@ -66,13 +95,13 @@ TAF.Utils = (function() {
       textarea.select();
       const success = document.execCommand('copy');
       document.body.removeChild(textarea);
+      if (success) toast('Copied to clipboard', 'success');
+      else toast('Failed to copy', 'error');
       return success;
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
-  //  Multi-Provider AI API
-  // ─────────────────────────────────────────────────────────────
+  // Multi-provider AI (same as before, omitted for brevity but unchanged)
   const callAI = async (questionsText, onChunk) => {
     const provider = TAF.Settings.get('aiProvider');
     const prompt = `${TAF.Settings.get('aiPrompt')}\n\nQuestions:\n${questionsText}\n\nProvide ONLY the answers:`;
