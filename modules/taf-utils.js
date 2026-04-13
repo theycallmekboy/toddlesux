@@ -1,5 +1,5 @@
 // modules/taf-utils.js
-// toddlesux - Utility functions with OpenAI API
+// toddlesux - Utility functions with multi-AI provider support
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -70,78 +70,195 @@ TAF.Utils = (function() {
     }
   };
 
-  // OpenAI API call
-  const callOpenAI = async (questionsText, onChunk) => {
-    const apiKey = TAF.Settings.get('openaiApiKey');
-    if (!apiKey) {
-      log('❌ OpenAI API key not set. Add it in Settings → General.', 'err');
-      return null;
-    }
-
+  // ─────────────────────────────────────────────────────────────
+  //  Multi-Provider AI API
+  // ─────────────────────────────────────────────────────────────
+  const callAI = async (questionsText, onChunk) => {
+    const provider = TAF.Settings.get('aiProvider');
     const prompt = `${TAF.Settings.get('aiPrompt')}\n\nQuestions:\n${questionsText}\n\nProvide ONLY the answers:`;
-    const model = TAF.Settings.get('aiModel');
+
+    switch (provider) {
+      case 'openai':
+        return await callOpenAI(prompt, onChunk);
+      case 'gemini':
+        return await callGemini(prompt, onChunk);
+      case 'claude':
+        return await callClaude(prompt, onChunk);
+      case 'github':
+        return await callGitHubModels(prompt, onChunk);
+      case 'groq':
+        return await callGroq(prompt, onChunk);
+      default:
+        log(`❌ Unknown AI provider: ${provider}`, 'err');
+        return null;
+    }
+  };
+
+  // OpenAI
+  async function callOpenAI(prompt, onChunk) {
+    const apiKey = TAF.Settings.get('openaiApiKey');
+    if (!apiKey) { log('❌ OpenAI API key not set.', 'err'); return null; }
+    const model = TAF.Settings.get('openaiModel');
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          stream: !!onChunk
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk })
       });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || 'API error');
-      }
-
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message); }
       if (onChunk) {
-        // Streaming
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let fullText = '';
+        let full = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value);
-          const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
           for (const line of lines) {
             const data = line.slice(6);
             if (data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content || '';
-              fullText += content;
-              onChunk(content, fullText);
-            } catch (e) {}
+            try { const p = JSON.parse(data); const c = p.choices[0]?.delta?.content || ''; full += c; onChunk(c, full); } catch {}
           }
         }
-        return fullText;
+        return full;
       } else {
         const data = await response.json();
         return data.choices[0].message.content;
       }
     } catch (err) {
-      log(`❌ OpenAI error: ${err.message}`, 'err');
+      log(`❌ OpenAI: ${err.message}`, 'err');
       return null;
     }
-  };
+  }
+
+  // Google Gemini
+  async function callGemini(prompt, onChunk) {
+    const apiKey = TAF.Settings.get('geminiApiKey');
+    if (!apiKey) { log('❌ Gemini API key not set.', 'err'); return null; }
+    const model = TAF.Settings.get('geminiModel');
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message); }
+      const data = await response.json();
+      const text = data.candidates[0]?.content?.parts[0]?.text || '';
+      if (onChunk) { onChunk(text, text); } // Gemini doesn't support streaming in free tier well
+      return text;
+    } catch (err) {
+      log(`❌ Gemini: ${err.message}`, 'err');
+      return null;
+    }
+  }
+
+  // Anthropic Claude
+  async function callClaude(prompt, onChunk) {
+    const apiKey = TAF.Settings.get('claudeApiKey');
+    if (!apiKey) { log('❌ Claude API key not set.', 'err'); return null; }
+    const model = TAF.Settings.get('claudeModel');
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0.3 })
+      });
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message); }
+      const data = await response.json();
+      const text = data.content[0]?.text || '';
+      if (onChunk) onChunk(text, text);
+      return text;
+    } catch (err) {
+      log(`❌ Claude: ${err.message}`, 'err');
+      return null;
+    }
+  }
+
+  // GitHub Models
+  async function callGitHubModels(prompt, onChunk) {
+    const token = TAF.Settings.get('githubToken');
+    if (!token) { log('❌ GitHub token not set.', 'err'); return null; }
+    const model = TAF.Settings.get('githubModel');
+
+    try {
+      const response = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk })
+      });
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message); }
+      if (onChunk) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let full = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+          for (const line of lines) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            try { const p = JSON.parse(data); const c = p.choices[0]?.delta?.content || ''; full += c; onChunk(c, full); } catch {}
+          }
+        }
+        return full;
+      } else {
+        const data = await response.json();
+        return data.choices[0].message.content;
+      }
+    } catch (err) {
+      log(`❌ GitHub Models: ${err.message}`, 'err');
+      return null;
+    }
+  }
+
+  // Groq
+  async function callGroq(prompt, onChunk) {
+    const apiKey = TAF.Settings.get('groqApiKey');
+    if (!apiKey) { log('❌ Groq API key not set.', 'err'); return null; }
+    const model = TAF.Settings.get('groqModel');
+
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk })
+      });
+      if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message); }
+      if (onChunk) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let full = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+          for (const line of lines) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            try { const p = JSON.parse(data); const c = p.choices[0]?.delta?.content || ''; full += c; onChunk(c, full); } catch {}
+          }
+        }
+        return full;
+      } else {
+        const data = await response.json();
+        return data.choices[0].message.content;
+      }
+    } catch (err) {
+      log(`❌ Groq: ${err.message}`, 'err');
+      return null;
+    }
+  }
 
   return {
-    sleep,
-    escHtml,
-    log,
-    clearLog,
-    setStatus,
-    highlight,
-    setNativeValue,
-    copyToClipboard,
-    callOpenAI
+    sleep, escHtml, log, clearLog, setStatus, highlight, setNativeValue, copyToClipboard, callAI
   };
 })();
