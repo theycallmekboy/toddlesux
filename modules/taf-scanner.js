@@ -1,5 +1,5 @@
 // modules/taf-scanner.js
-// toddlesux - Question detection & scanning
+// toddlesux - Question detection with caching and observer invalidation
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -12,49 +12,32 @@ TAF.Scanner = (function() {
   const OPTIONS_CONTAINER_SELECTOR = '[class*="MultiChoiceCheckList__container"]';
   const OPTION_ITEM_SELECTOR = '[class*="OptionsList__itemContainer"]';
 
+  let cachedBlocks = null;
+  let cacheValid = false;
+
+  function invalidateCache() { cacheValid = false; cachedBlocks = null; }
+
   function findQuestionBlocks() {
-    // Use only the main container selector, plus data-test-id for sub-questions
+    if (cacheValid && cachedBlocks) return cachedBlocks;
+    
     const mainCards = document.querySelectorAll(QUESTION_SELECTOR);
     const subCards = document.querySelectorAll('[data-test-id*="worksheet-question-questionCard"]');
+    const all = [...new Set([...mainCards, ...subCards])];
     
-    // Combine, but filter to only those that contain actual interactive elements
-    const allCards = [...mainCards, ...subCards];
-    const seen = new Set();
-    const uniqueCards = [];
-    
-    for (const card of allCards) {
-      // Skip if we've already processed this exact DOM element
-      if (seen.has(card)) continue;
-      seen.add(card);
-      
-      // Must contain form elements or options container
-      const hasFormElements = card.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"]');
-      const hasOptions = card.querySelector(OPTIONS_CONTAINER_SELECTOR);
-      
-      if (hasFormElements || hasOptions) {
-        uniqueCards.push(card);
-      }
-    }
-    
-    return uniqueCards;
+    cachedBlocks = all.filter(el => 
+      el.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"], ' + OPTIONS_CONTAINER_SELECTOR)
+    );
+    cacheValid = true;
+    return cachedBlocks;
   }
 
   function getQuestionLabel(block) {
     const header = block.querySelector(QUESTION_TEXT_SELECTOR);
     if (header) {
-      const indexEl = header.querySelector('[class*="Header__index"]');
-      const textEl = header.querySelector('[class*="Header__minWidth0"]');
-      if (indexEl && textEl) {
-        const number = indexEl.textContent.trim();
-        const text = textEl.textContent.trim();
-        return `${number} ${text}`;
-      }
+      const idx = header.querySelector('[class*="Header__index"]');
+      const txt = header.querySelector('[class*="Header__minWidth0"]');
+      if (idx && txt) return `${idx.textContent.trim()} ${txt.textContent.trim()}`;
       return header.textContent.trim();
-    }
-    const candidates = block.querySelectorAll('label, legend, h3, h4, h5, [class*="label"]');
-    for (const el of candidates) {
-      const t = el.textContent.trim();
-      if (t.length > 1 && t.length < 500) return t;
     }
     return block.textContent.replace(/\s+/g, ' ').trim().slice(0, 80);
   }
@@ -63,56 +46,31 @@ TAF.Scanner = (function() {
     TAF.Utils.clearLog();
     const blocks = findQuestionBlocks();
     if (!blocks.length) {
-      TAF.Utils.log('No question blocks found. Scroll to load content first.', 'warn');
+      TAF.Utils.log('No questions found', 'warn');
       TAF.Utils.setStatus('NONE', false);
-      return;
+      return blocks;
     }
-    TAF.Utils.log(`Found ${blocks.length} question block(s):`, 'info');
-    blocks.forEach((b, i) => {
-      const label = getQuestionLabel(b).slice(0, 60);
-      TAF.Utils.log(`q${i + 1}: ${label}`, 'info');
-    });
-    TAF.Utils.setStatus(`${blocks.length} QS`, true);
+    TAF.Utils.log(`Found ${blocks.length} questions`, 'info');
+    blocks.forEach((b, i) => TAF.Utils.log(`q${i+1}: ${getQuestionLabel(b).slice(0,60)}`, 'info'));
+    TAF.Utils.setStatus(`${blocks.length} Qs`, true);
+    return blocks;
   }
 
   async function copyAllQuestions() {
     const blocks = findQuestionBlocks();
-    if (!blocks.length) {
-      TAF.Utils.log('No questions found. Scroll to load them first.', 'warn');
-      return;
-    }
-
+    if (!blocks.length) { TAF.Utils.toast('No questions found', 'warn'); return; }
     const lines = [];
-    blocks.forEach((b) => {
+    blocks.forEach((b, i) => {
       const label = getQuestionLabel(b);
-      const match = label.match(/^(Q\d+(?:\.\d+)?)/i);
-      if (match) {
-        const prefix = match[1];
-        const rest = label.slice(prefix.length).replace(/^[:.\s]+/, '').trim();
-        lines.push(`${prefix}: ${rest}`);
-      } else {
-        const idx = lines.length + 1;
-        lines.push(`Q${idx}: ${label}`);
-      }
+      const m = label.match(/^(Q\d+(?:\.\d+)?)/i);
+      lines.push(m ? `${m[1]}: ${label.slice(m[1].length).replace(/^[:.\s]+/, '').trim()}` : `Q${i+1}: ${label}`);
     });
-
-    const output = lines.join('\n');
-    const success = await TAF.Utils.copyToClipboard(output);
-    if (success) {
-      TAF.Utils.log(`✅ Copied ${blocks.length} questions to clipboard!`, 'ok');
-    } else {
-      TAF.Utils.log('❌ Failed to copy questions.', 'err');
-    }
+    await TAF.Utils.copyToClipboard(lines.join('\n'));
+    TAF.Utils.log(`Copied ${blocks.length} questions`, 'ok');
   }
 
   return {
-    QUESTION_SELECTOR,
-    QUESTION_TEXT_SELECTOR,
-    OPTIONS_CONTAINER_SELECTOR,
-    OPTION_ITEM_SELECTOR,
-    findQuestionBlocks,
-    getQuestionLabel,
-    scanPage,
-    copyAllQuestions
+    QUESTION_SELECTOR, QUESTION_TEXT_SELECTOR, OPTIONS_CONTAINER_SELECTOR, OPTION_ITEM_SELECTOR,
+    findQuestionBlocks, getQuestionLabel, scanPage, copyAllQuestions, invalidateCache
   };
 })();
