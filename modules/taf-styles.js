@@ -1,5 +1,5 @@
 // modules/taf-styles.js
-// toddlesux - Apple-inspired true black theme with ChatGPT panel
+// toddlesux - Apple-inspired true black theme with subtle animations
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -12,9 +12,13 @@ TAF.Styles = (function() {
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
       :root {
-        --taf-accent: #f5a623;
+        --taf-accent: #ff3b30;
         --taf-bg: #000000;
         --taf-blur: 20px;
+      }
+
+      * {
+        transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.2s ease, transform 0.2s cubic-bezier(0.2, 0.9, 0.4, 1);
       }
 
       #taf-root * {
@@ -31,9 +35,14 @@ TAF.Styles = (function() {
         min-width: 280px;
         min-height: 400px;
         z-index: 2147483647;
-        transition: opacity 0.2s;
+        transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1);
         resize: both;
         overflow: auto;
+        animation: taf-fade-in 0.3s ease;
+      }
+      @keyframes taf-fade-in {
+        from { opacity: 0; transform: translateY(-45%); }
+        to { opacity: 1; transform: translateY(-50%); }
       }
       #taf-root.taf-hidden {
         opacity: 0;
@@ -122,10 +131,10 @@ TAF.Styles = (function() {
         cursor: pointer;
         font-size: 18px;
         padding: 0 4px;
-        transition: color 0.15s;
+        transition: color 0.15s ease, transform 0.1s ease;
       }
-      #taf-settings-btn:hover { color: var(--taf-accent); }
-      #taf-close-btn:hover { color: #ff5f5f; }
+      #taf-settings-btn:hover { color: var(--taf-accent); transform: scale(1.1); }
+      #taf-close-btn:hover { color: #ff5f5f; transform: scale(1.1); }
 
       #taf-body {
         flex: 1;
@@ -149,6 +158,11 @@ TAF.Styles = (function() {
         grid-template-columns: 1fr 1fr 28px;
         gap: 8px;
         margin-bottom: 8px;
+        animation: taf-slide-up 0.2s ease;
+      }
+      @keyframes taf-slide-up {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
       }
       .taf-row input {
         background: rgba(255, 255, 255, 0.05);
@@ -158,11 +172,12 @@ TAF.Styles = (function() {
         font-size: 12px;
         padding: 8px 10px;
         outline: none;
-        transition: border 0.15s, background 0.15s;
+        transition: border 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
       }
       .taf-row input:focus {
         border-color: var(--taf-accent);
         background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.2);
       }
 
       .taf-row .taf-del {
@@ -177,12 +192,13 @@ TAF.Styles = (function() {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.15s;
+        transition: all 0.15s ease;
       }
       .taf-row .taf-del:hover {
         border-color: #ff5f5f;
         color: #ff5f5f;
         background: rgba(255, 95, 95, 0.1);
+        transform: scale(1.05);
       }
 
       #taf-bulk-text {
@@ -196,8 +212,12 @@ TAF.Styles = (function() {
         resize: vertical;
         min-height: 80px;
         margin-bottom: 8px;
+        transition: border 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
       }
-      #taf-bulk-text:focus { border-color: var(--taf-accent); }
+      #taf-bulk-text:focus { 
+        border-color: var(--taf-accent); 
+        box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.2);
+      }
 
       .taf-bulk-buttons {
         display: flex;
@@ -212,15 +232,22 @@ TAF.Styles = (function() {
         font-weight: 500;
         cursor: pointer;
         padding: 8px 14px;
-        transition: all 0.15s;
+        transition: all 0.15s ease;
         background: rgba(255, 255, 255, 0.06);
         border: 0.5px solid rgba(255, 255, 255, 0.08);
         color: #ddd;
         flex: 1 0 auto;
         backdrop-filter: blur(5px);
+        transform: scale(1);
       }
       .taf-btn:hover {
         background: rgba(255, 255, 255, 0.12);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      }
+      .taf-btn:active {
+        transform: scale(0.98);
+        transition: transform 0.05s;
       }
       .taf-btn:disabled {
         opacity: 0.4;
@@ -229,6 +256,8 @@ TAF.Styles = (function() {
         background: rgba(255, 255, 255, 0.03);
         border-color: rgba(255, 255, 255, 0.05);
         color: #666;
+        transform: none;
+        box-shadow: none;
       }
 
       .taf-btn-row {
@@ -236,11 +265,6 @@ TAF.Styles = (function() {
         grid-template-columns: 1fr 1fr;
         gap: 8px;
         margin: 16px 0 8px;
-      }
-      #taf-btn-scan {
-        background: rgba(255, 255, 255, 0.04);
-        border-color: rgba(255, 255, 255, 0.1);
-        color: #aaa;
       }
       #taf-btn-run {
         background: var(--taf-accent);
@@ -266,6 +290,12 @@ TAF.Styles = (function() {
         display: none;
       }
       #taf-log.visible { display: block; }
+      .taf-log-line {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        animation: taf-slide-up 0.2s ease;
+      }
       .taf-log-line .taf-tag {
         font-size: 9px;
         padding: 2px 6px;
@@ -289,13 +319,62 @@ TAF.Styles = (function() {
         outline: 2px solid var(--taf-accent) !important;
         outline-offset: 2px !important;
         border-radius: 8px;
+        animation: taf-pulse-outline 0.3s ease;
+      }
+      @keyframes taf-pulse-outline {
+        0% { outline-width: 0; }
+        100% { outline-width: 2px; }
       }
 
-      /* ai Panel */
+      /* Toast Notifications */
+      #taf-toast-container {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2147483650;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        pointer-events: none;
+      }
+      .taf-toast {
+        background: rgba(30, 30, 30, 0.95);
+        backdrop-filter: blur(20px);
+        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        border-radius: 40px;
+        padding: 10px 20px;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        pointer-events: auto;
+        animation: taf-toast-in 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .taf-toast.success { border-left: 3px solid #7ec850; }
+      .taf-toast.error { border-left: 3px solid #ff5f5f; }
+      .taf-toast.info { border-left: 3px solid var(--taf-accent); }
+      @keyframes taf-toast-in {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .taf-toast.hiding {
+        animation: taf-toast-out 0.2s ease forwards;
+      }
+      @keyframes taf-toast-out {
+        to { opacity: 0; transform: translateY(-10px); }
+      }
+
+      /* AI Section */
       #taf-ai-section {
         margin-top: 16px;
         border-top: 0.5px solid rgba(255,255,255,0.05);
         padding-top: 12px;
+        animation: taf-fade-in 0.3s ease;
       }
       #taf-ai-questions {
         width: 100%;
@@ -308,6 +387,11 @@ TAF.Styles = (function() {
         resize: vertical;
         min-height: 100px;
         margin-bottom: 8px;
+        transition: border 0.15s ease, box-shadow 0.15s ease;
+      }
+      #taf-ai-questions:focus {
+        border-color: var(--taf-accent);
+        box-shadow: 0 0 0 2px rgba(255, 59, 48, 0.2);
       }
       #taf-ai-output {
         width: 100%;
@@ -338,6 +422,7 @@ TAF.Styles = (function() {
         display: flex;
         align-items: center;
         justify-content: center;
+        animation: taf-fade-in 0.2s ease;
       }
       #taf-settings-modal.hidden { display: none; }
       .taf-modal-content {
@@ -393,13 +478,14 @@ TAF.Styles = (function() {
         cursor: pointer;
         border-radius: 20px;
         margin-right: 4px;
+        transition: all 0.15s ease;
       }
       .taf-tab-btn.active {
         background: rgba(255,255,255,0.08);
         color: var(--taf-accent);
       }
       .taf-tab-pane { display: none; }
-      .taf-tab-pane.active { display: block; }
+      .taf-tab-pane.active { display: block; animation: taf-fade-in 0.2s ease; }
 
       .taf-setting-item { margin-bottom: 18px; }
       .taf-setting-item label {
@@ -416,12 +502,15 @@ TAF.Styles = (function() {
       }
       .taf-setting-item input[type="number"],
       .taf-setting-item input[type="text"],
-      .taf-setting-item input[type="password"] {
+      .taf-setting-item input[type="password"],
+      .taf-setting-item select {
         background: rgba(255,255,255,0.05);
         border: 0.5px solid rgba(255,255,255,0.1);
         border-radius: 10px;
         color: #fff;
-        padding: 6px 10px;
+        padding: 8px 10px;
+        width: 100%;
+        margin-top: 6px;
       }
       .taf-color-picker {
         display: flex;
@@ -446,6 +535,7 @@ TAF.Styles = (function() {
         display: flex;
         align-items: center;
         justify-content: center;
+        animation: taf-fade-in 0.3s ease;
       }
       .taf-tutorial-card {
         background: rgba(30,30,30,0.9);
@@ -455,6 +545,7 @@ TAF.Styles = (function() {
         padding: 32px;
         max-width: 500px;
         text-align: center;
+        animation: taf-slide-up 0.3s ease;
       }
       .taf-tutorial-card h2 {
         color: var(--taf-accent);
