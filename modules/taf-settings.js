@@ -27,12 +27,11 @@ TAF.Settings = (function() {
     hotkey: 'Delete',
 
     // Theme
-    accentColor: '#ff3b30',        // Apple red
+    accentColor: '#ff3b30',
     backgroundColor: '#000000',
     blurIntensity: 20,
 
-    // Button visibility
-    showParseAdd: false,           // auto-parse now, hide button by default
+    // Button visibility 
     showClearAll: true,
     showPaste: true,
     showAiPrompt: true,
