@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      0.0.155555
+// @version      0.0.16
 // @description  Auto-fills Toddle forms with human-like delays, ChatGPT integration, and sleek UI
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
@@ -9,14 +9,14 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @downloadURL  https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/taf-core.user.js
-// @updateURL    https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/taf-core.user.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-utils.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-styles.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-settings.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-scanner.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-filler.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-ui.js
+// @downloadURL  https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/taf-core.user.js
+// @updateURL    https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/taf-core.user.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/modules/taf-utils.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/modules/taf-styles.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/modules/taf-settings.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/modules/taf-scanner.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/modules/taf-filler.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/gpt/modules/taf-ui.js
 // @run-at       document-idle
 // ==/UserScript==
 
