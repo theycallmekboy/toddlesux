@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Apple-inspired UI with multi-AI support and optional AI section
+// toddlesux - Apple-inspired UI with multi-AI support, auto-fill, and reset
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -301,20 +301,18 @@ TAF.UI = (function() {
             <textarea id="taf-ai-questions" placeholder="Paste your questions here..."></textarea>
             <div class="taf-ai-buttons">
               <button class="taf-btn" id="taf-ai-send">Send to AI</button>
-              <button class="taf-btn" id="taf-ai-parse">Parse & Fill</button>
             </div>
             <div id="taf-ai-output" placeholder="AI answers will appear here..."></div>
           </div>
 
           <div class="taf-btn-row">
-            <button class="taf-btn" id="taf-btn-scan">⟳ Scan page</button>
             <button class="taf-btn" id="taf-btn-run">▶ Fill now</button>
           </div>
 
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v5.1 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v5.2 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -325,13 +323,10 @@ TAF.UI = (function() {
 
     rebuildBulkButtons(root);
 
-    // AI elements
+    // AI elements (simplified: auto-fill on success)
     const aiQuestions = root.querySelector('#taf-ai-questions');
     const aiOutput = root.querySelector('#taf-ai-output');
     const btnAISend = root.querySelector('#taf-ai-send');
-    const btnAIParse = root.querySelector('#taf-ai-parse');
-
-    let aiAnswers = '';
 
     btnAISend.addEventListener('click', async () => {
       const questions = aiQuestions.value.trim();
@@ -358,28 +353,22 @@ TAF.UI = (function() {
       btnAISend.textContent = 'Thinking...';
       aiOutput.textContent = '';
 
-      aiAnswers = await callAI(questions, (chunk, full) => {
+      const aiAnswers = await callAI(questions, (chunk, full) => {
         aiOutput.textContent = full;
       });
 
       btnAISend.disabled = false;
       btnAISend.textContent = 'Send to AI';
+      
       if (aiAnswers) {
-        log('✅ AI answers received! Click "Parse & Fill" to use them.', 'ok');
+        // Auto-fill: directly parse into answer rows and bulk text
+        bulkText.value = aiAnswers;
+        parseBulkImport(bulkText, entries);
+        log('✅ AI answers loaded automatically!', 'ok');
         setStatus('AI READY', true);
       } else {
         setStatus('ERROR', false);
       }
-    });
-
-    btnAIParse.addEventListener('click', () => {
-      if (!aiAnswers) {
-        log('No AI answers yet. Click "Send to AI" first.', 'warn');
-        return;
-      }
-      bulkText.value = aiAnswers;
-      parseBulkImport(bulkText, entries);
-      log('✅ AI answers parsed and loaded.', 'ok');
     });
 
     // Resize handle for main panel
@@ -542,6 +531,11 @@ TAF.UI = (function() {
             <label>AI Prompt</label>
             <textarea id="taf-setting-aiPrompt" style="width:100%; height:120px; margin-top:6px; background:rgba(255,255,255,0.03); border:0.5px solid rgba(255,255,255,0.08); border-radius:12px; color:#fff; padding:10px; font-size:11px; resize:vertical;">${escHtml(Settings.get('aiPrompt'))}</textarea>
           </div>
+          
+          <!-- Reset Button -->
+          <div class="taf-setting-item" style="margin-top:24px;">
+            <button class="taf-btn" id="taf-reset-settings" style="background:rgba(255,80,80,0.15); border-color:rgba(255,80,80,0.3); color:#ff5f5f;">⚠️ Reset All Settings</button>
+          </div>
         </div>
 
         <!-- Humanize Tab -->
@@ -636,7 +630,20 @@ TAF.UI = (function() {
       Object.keys(panels).forEach(k => { if (panels[k]) panels[k].style.display = k === val ? 'block' : 'none'; });
     });
 
-    // Modal dragging & resizing
+    // Reset settings button
+    const btnReset = modal.querySelector('#taf-reset-settings');
+    btnReset.addEventListener('click', () => {
+      if (confirm('Reset all settings to defaults? This cannot be undone.')) {
+        Settings.reset();
+        GM_setValue(TUTORIAL_SHOWN_KEY, false);
+        Settings.applyTheme();
+        modal.classList.add('hidden');
+        log('✅ Settings reset. Reloading...', 'ok');
+        setTimeout(() => location.reload(), 500);
+      }
+    });
+
+    // Modal dragging & resizing (same)
     const modalHeader = modal.querySelector('.taf-modal-header');
     let isModalDragging = false;
     let modalStartX, modalStartY, modalStartLeft, modalStartTop;
@@ -722,7 +729,6 @@ TAF.UI = (function() {
 
     // Elements
     const btnAdd = root.querySelector('#taf-btn-add');
-    const btnScan = root.querySelector('#taf-btn-scan');
     const btnRun = root.querySelector('#taf-btn-run');
     const settingsBtn = root.querySelector('#taf-settings-btn');
     const closeBtn = root.querySelector('#taf-close-btn');
@@ -754,7 +760,6 @@ TAF.UI = (function() {
 
     // Event listeners
     btnAdd.addEventListener('click', () => addAnswerRow(entries));
-    btnScan.addEventListener('click', Scanner.scanPage);
     btnRun.addEventListener('click', () => {
       if (Filler.isRunning()) Filler.stopFill();
       else Filler.runFill(getAnswersFromUI(entries));
