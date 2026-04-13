@@ -9,12 +9,14 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-utils.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-styles.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-settings.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-scanner.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-filler.js
-// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/main/modules/taf-ui.js
+// @downloadURL  https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/taf-core.user.js
+// @updateURL    https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/taf-core.user.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-utils.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-styles.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-settings.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-scanner.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-filler.js
+// @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-ui.js
 // @run-at       document-idle
 // ==/UserScript==
 
