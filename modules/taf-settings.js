@@ -1,5 +1,5 @@
 // modules/taf-settings.js
-// toddlesux - Settings management with theming and OpenAI
+// toddlesux - Settings management with theming and multi-AI support
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -23,6 +23,7 @@ TAF.Settings = (function() {
     // General UI
     showAnswerRows: true,
     showLogPanel: true,
+    showAISection: true,        // NEW: toggle AI section
     hotkey: 'Delete',
 
     // Theme
@@ -39,9 +40,22 @@ TAF.Settings = (function() {
     showClearHighlights: true,
     showClearAllAnswers: true,
 
-    // OpenAI (optional)
+    // AI Provider
+    aiProvider: 'openai',        // 'openai', 'gemini', 'claude', 'github', 'groq'
+    
+    // API Keys (stored separately per provider)
     openaiApiKey: '',
-    aiModel: 'gpt-4o-mini',
+    geminiApiKey: '',
+    claudeApiKey: '',
+    githubToken: '',
+    groqApiKey: '',
+
+    // Model settings
+    openaiModel: 'gpt-4o-mini',
+    geminiModel: 'gemini-2.0-flash',
+    claudeModel: 'claude-3-haiku-20240307',
+    githubModel: 'gpt-4o',
+    groqModel: 'llama-3.3-70b-versatile',
 
     // AI Prompt
     aiPrompt: `Format your answers exactly like this for toddlesux:
