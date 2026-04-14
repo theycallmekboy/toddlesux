@@ -60,9 +60,8 @@ TAF.Filler = (function() {
     if (!answerArray?.length || !block) return false;
     let anyFilled = false;
     const firstAns = answerArray[0]?.trim() || '';
-    const firstAnsLo = firstAns.toLowerCase();
 
-    // 1. Multiple Choice (Selector-based)
+    // 1. Multiple Choice
     const optsContainer = block.querySelector(Scanner.OPTIONS_CONTAINER_SELECTOR);
     if (optsContainer) {
       const items = optsContainer.querySelectorAll(Scanner.OPTION_ITEM_SELECTOR);
@@ -80,7 +79,7 @@ TAF.Filler = (function() {
       }
     }
 
-    // 2. Radio/checkbox (Generic)
+    // 2. Radio/checkbox (Standalone)
     if (!anyFilled) {
       for (const r of block.querySelectorAll('input[type="radio"], input[type="checkbox"]')) {
         const lbl = r.labels?.[0] || r.closest('label') || r.parentElement;
@@ -95,25 +94,9 @@ TAF.Filler = (function() {
       }
     }
 
-    // 3. Option Pills (The "missing" secret from the old version)
+    // 3. Dropdown (supports Portals)
     if (!anyFilled) {
-      const pills = [...block.querySelectorAll('[role="radio"], [role="option"], [class*="option"], [class*="Option"], [class*="choice"], [class*="Choice"]')];
-      for (const pill of pills) {
-        const text = pill.textContent.trim().toLowerCase();
-        if (text && (text.includes(firstAnsLo) || firstAnsLo.includes(text))) {
-           scrollToElement(pill);
-           pill.click();
-           highlight(pill);
-           log(`Pill → "${firstAns}"`, 'ok');
-           anyFilled = true;
-           break;
-        }
-      }
-    }
-
-    // 4. Dropdowns ( supports Portals + custom triggers )
-    if (!anyFilled) {
-      const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"], [class*="select-trigger"]');
+      const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
       if (drop) {
         drop.click();
         const opened = await waitForDropdownItems(block);
@@ -137,11 +120,12 @@ TAF.Filler = (function() {
       }
     }
 
-    // 5. Text Inputs (Supports ContentEditable via execCommand)
+    // 4. Text Inputs (Mixed content: Always attempt to fill text boxes)
     const textEls = [...block.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea, [contenteditable="true"]')];
     if (textEls.length) {
       scrollToElement(block);
       let filledCount = 0;
+      // If we filled a choice above, the text answer is likely the SECOND element in answerArray
       const textStartIndex = anyFilled ? 1 : 0;
       
       for (let i = 0; i < textEls.length; i++) {
@@ -151,32 +135,25 @@ TAF.Filler = (function() {
         
         const inp = textEls[i];
         inp.focus();
+        const useHuman = Settings.get('enableCharTyping');
+        const useMistakes = Settings.get('enableHumanTyping');
 
-        if (inp.getAttribute('contenteditable') === 'true' || inp.contentEditable === 'true') {
-           // execCommand is more stable for rich text than innerText
-           document.execCommand('selectAll', false, null);
-           document.execCommand('insertText', false, ans);
-           inp.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-          const useHuman = Settings.get('enableCharTyping');
-          const useMistakes = Settings.get('enableHumanTyping');
-          if (useHuman) {
-            let currentStr = '';
-            for (let c = 0; c < ans.length; c++) {
-              if (useMistakes && Math.random() < Settings.get('humanTypingChance') && c > 0 && c < ans.length - 1) {
-                const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
-                await setAndDispatch(inp, currentStr + wrongChar);
-                await sleep(Settings.get('charTypingDelay') * 1.5);
-                await setAndDispatch(inp, currentStr);
-                await sleep(Settings.get('charTypingDelay'));
-              }
-              currentStr += ans[c];
+        if (useHuman) {
+          let currentStr = '';
+          for (let c = 0; c < ans.length; c++) {
+            if (useMistakes && Math.random() < Settings.get('humanTypingChance') && c > 0 && c < ans.length - 1) {
+              const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+              await setAndDispatch(inp, currentStr + wrongChar);
+              await sleep(Settings.get('charTypingDelay') * 1.5);
               await setAndDispatch(inp, currentStr);
-              await sleep(Settings.get('charTypingDelay') + (Math.random() * 20));
+              await sleep(Settings.get('charTypingDelay'));
             }
-          } else {
-            await setAndDispatch(inp, ans);
+            currentStr += ans[c];
+            await setAndDispatch(inp, currentStr);
+            await sleep(Settings.get('charTypingDelay') + (Math.random() * 20));
           }
+        } else {
+          await setAndDispatch(inp, ans);
         }
         inp.blur();
         highlight(inp);
@@ -283,7 +260,7 @@ TAF.Filler = (function() {
   }
 
   function stopFill() { if (abortController) abortController.abort(); }
-  function isFilling() { return isRunning; }
+  function isRunning() { return isRunning; }
 
-  return { runFill, stopFill, isFilling };
+  return { runFill, stopFill, isRunning };
 })();

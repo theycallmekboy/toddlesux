@@ -7,10 +7,10 @@ window.TAF = window.TAF || {};
 TAF.Scanner = (function() {
   'use strict';
 
-  // --- Primary Selectors (Combining old aggression with new stability) ---
-  const QUESTION_SELECTOR = '[data-test-id*="worksheet-question-questionCard"], [class*="SectionDetails__questionCardRevamp"]';
+  // --- Primary Selector (Attribute-based is more stable than dynamic classes) ---
+  const QUESTION_SELECTOR = '[data-test-id^="worksheet-question-questionCard-"]';
   const INDEX_SELECTOR = '[class*="Header__index"]';
-  const TEXT_SELECTOR = '[class*="Textview__richText"], [class*="Header__minWidth0"]';
+  const TEXT_SELECTOR = '[class*="Textview__richText"]';
   
   const OPTIONS_CONTAINER_SELECTOR = '[class*="MultiChoiceCheckList__container"]';
   const OPTION_ITEM_SELECTOR = '[class*="OptionsList__itemContainer"]';
@@ -24,23 +24,26 @@ TAF.Scanner = (function() {
     if (cacheValid && cachedBlocks) return cachedBlocks;
     cacheValid = true;
 
+    // 1. Get all potential cards
     const cards = Array.from(document.querySelectorAll(QUESTION_SELECTOR));
+    
+    // 2. Filter out duplicates based on the DOM element itself
+    // (This prevents the 'doubling' issue from the old version)
     const unique = [];
     const seen = new Set();
 
     cards.forEach(card => {
-      // Check if this card contains another question card (it's a wrapper)
+      // If this card contains another question card, it's a wrapper. 
+      // We want the most specific (inner) card.
       const hasInnerCard = card.querySelector(QUESTION_SELECTOR);
-      // Ensure it has interactive elements (from the working old version)
-      const hasInteractive = card.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [role="option"], [contenteditable="true"]');
       
-      if (!seen.has(card) && !hasInnerCard && hasInteractive) {
+      if (!seen.has(card) && !hasInnerCard) {
         seen.add(card);
         unique.push(card);
       }
     });
 
-    // Sort by vertical position (The fix for "Last Question Only")
+    // 3. Sort by vertical position on the page (The most stable way)
     cachedBlocks = unique.sort((a, b) => {
       return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
     });
@@ -52,18 +55,11 @@ TAF.Scanner = (function() {
     const indexEl = block.querySelector(INDEX_SELECTOR);
     const textEl = block.querySelector(TEXT_SELECTOR);
     
-    if (indexEl && textEl) {
-      return `${indexEl.textContent.trim()} ${textEl.textContent.trim()}`;
-    }
+    const index = indexEl ? indexEl.textContent.trim() : ""; 
+    const text = textEl ? textEl.textContent.trim() : "";
     
-    // Fallback to old version's label logic
-    const candidates = block.querySelectorAll('label, legend, h3, h4, h5, [class*="label"]');
-    for (const el of candidates) {
-      const t = el.textContent.trim();
-      if (t.length > 1 && t.length < 500) return t;
-    }
-    
-    return block.textContent.slice(0, 100).replace(/\s+/g, ' ').trim();
+    if (!index && !text) return block.textContent.slice(0, 100).replace(/\s+/g, ' ').trim();
+    return `${index} ${text}`.trim();
   }
 
   function scanPage() {
