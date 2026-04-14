@@ -24,24 +24,28 @@ TAF.Scanner = (function() {
     if (cacheValid && cachedBlocks) return cachedBlocks;
     cacheValid = true;
 
-    const cards = document.querySelectorAll(QUESTION_SELECTOR);
-    const seenIds = new Set();
+    // 1. Get all potential cards
+    const cards = Array.from(document.querySelectorAll(QUESTION_SELECTOR));
+    
+    // 2. Filter out duplicates based on the DOM element itself
+    // (This prevents the 'doubling' issue from the old version)
     const unique = [];
+    const seen = new Set();
 
-    // Deduplicate by the unique data-test-id string, not DOM reference
     cards.forEach(card => {
-      const id = card.getAttribute('data-test-id');
-      if (id && !seenIds.has(id)) {
-        seenIds.add(id);
+      // If this card contains another question card, it's a wrapper. 
+      // We want the most specific (inner) card.
+      const hasInnerCard = card.querySelector(QUESTION_SELECTOR);
+      
+      if (!seen.has(card) && !hasInnerCard) {
+        seen.add(card);
         unique.push(card);
       }
     });
 
-    // Ensure logical order based on the trailing question index in the ID
+    // 3. Sort by vertical position on the page (The most stable way)
     cachedBlocks = unique.sort((a, b) => {
-      const idxA = parseInt(a.getAttribute('data-test-id').split('-').pop()) || 0;
-      const idxB = parseInt(b.getAttribute('data-test-id').split('-').pop()) || 0;
-      return idxA - idxB;
+      return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
     });
 
     return cachedBlocks;
