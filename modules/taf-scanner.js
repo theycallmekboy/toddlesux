@@ -7,7 +7,6 @@ window.TAF = window.TAF || {};
 TAF.Scanner = (function() {
   'use strict';
 
-  // Use only the specific data-test-id selector to avoid duplicate parent/child matches
   const QUESTION_SELECTOR = '[data-test-id*="worksheet-question-questionCard"]';
   const QUESTION_TEXT_SELECTOR = '[class*="Header__studentViewContainer"]';
   const OPTIONS_CONTAINER_SELECTOR = '[class*="MultiChoiceCheckList__container"]';
@@ -20,7 +19,6 @@ TAF.Scanner = (function() {
 
   function findQuestionBlocks() {
     if (cacheValid && cachedBlocks) return cachedBlocks;
-    
     const cards = document.querySelectorAll(QUESTION_SELECTOR);
     cachedBlocks = [...cards].filter(el => 
       el.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"], ' + OPTIONS_CONTAINER_SELECTOR)

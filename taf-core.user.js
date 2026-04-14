@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      0.0.1
+// @version      6.3
 // @description  Optimized Toddle autofill with AI, human simulation, and advanced features
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
@@ -21,13 +21,26 @@
 (function() {
   'use strict';
 
+  // --- Execution mutex ---
+  let isFilling = false;
+  window.TAF = window.TAF || {};
+  TAF.__isFilling = () => isFilling;
+  TAF.__setFilling = (v) => { isFilling = v; };
+
+  // --- Hotkey safety ---
+  const isTyping = () => {
+    const el = document.activeElement;
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable || el.getAttribute('role') === 'textbox');
+  };
+
   let lastHotkeyTime = 0;
   const DOUBLE_TAP_MS = 300;
 
   document.addEventListener('keydown', (e) => {
     if (!window.TAF || !TAF.Settings) return;
+    if (isTyping()) return; // Rule 2: no hotkeys while typing
+
     const hotkey = TAF.Settings.get('hotkey') || 'Delete';
-    
     if (e.key === hotkey) {
       e.preventDefault();
       const root = document.getElementById('taf-root');
@@ -37,51 +50,36 @@
       const isDoubleTap = (now - lastHotkeyTime) < DOUBLE_TAP_MS;
       lastHotkeyTime = now;
 
-      // Double‑tap only resets position if panel is currently visible
       if (isDoubleTap && root.classList.contains('taf-visible') && !root.classList.contains('taf-emergency-hidden')) {
-        // Reset saved position to default centered
         TAF.Settings.set('panelX', null);
         TAF.Settings.set('panelY', null);
         TAF.Settings.set('panelWidth', 360);
         TAF.Settings.set('panelHeight', null);
-        
-        // Reset inline styles to CSS defaults
-        root.style.left = '';
-        root.style.top = '50%';
-        root.style.right = '20px';
-        root.style.transform = 'translateY(-50%)';
-        root.style.width = '360px';
-        root.style.height = '';
-        
+        root.style.left = ''; root.style.top = '50%'; root.style.right = '20px'; root.style.transform = 'translateY(-50%)'; root.style.width = '360px'; root.style.height = '';
         if (TAF.Utils) TAF.Utils.toast('Panel position reset', 'info');
-        return; // Don't toggle visibility
+        return;
       }
 
-      // Single tap: toggle visibility
       root.classList.toggle('taf-emergency-hidden');
-      if (TAF.Utils) {
-        TAF.Utils.toast(`Panel ${root.classList.contains('taf-emergency-hidden') ? 'hidden' : 'shown'}`, 'info');
-      }
+      if (TAF.Utils) TAF.Utils.toast(`Panel ${root.classList.contains('taf-emergency-hidden') ? 'hidden' : 'shown'}`, 'info');
     }
-    
+
     if (e.ctrlKey && e.shiftKey && e.key === 'F') {
       e.preventDefault();
-      if (TAF.Scanner) TAF.Scanner.scanPage();
+      if (!isTyping() && TAF.Scanner) TAF.Scanner.scanPage();
     }
-    
     if (e.ctrlKey && e.key === 'Enter') {
       const root = document.getElementById('taf-root');
-      if (root && !root.classList.contains('taf-emergency-hidden')) {
+      if (root && !root.classList.contains('taf-emergency-hidden') && !isTyping()) {
         e.preventDefault();
         const btn = document.getElementById('taf-btn-run');
-        if (btn) btn.click();
+        if (btn && !isFilling) btn.click();
       }
     }
   });
 
-  let observer = null;
-  let debounceTimer = null;
-  
+  // --- MutationObserver with debounce ---
+  let observer = null, debounceTimer = null;
   function initObserver() {
     if (observer) observer.disconnect();
     observer = new MutationObserver(() => {
@@ -91,6 +89,23 @@
       }, 100);
     });
     observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // --- SPA navigation detection ---
+  const originalPush = history.pushState;
+  const originalReplace = history.replaceState;
+  history.pushState = function(...args) {
+    originalPush.apply(this, args);
+    handleNavigation();
+  };
+  history.replaceState = function(...args) {
+    originalReplace.apply(this, args);
+    handleNavigation();
+  };
+  window.addEventListener('popstate', handleNavigation);
+  function handleNavigation() {
+    if (TAF.Scanner) TAF.Scanner.invalidateCache();
+    if (TAF.UI && typeof TAF.UI.resetForNavigation === 'function') TAF.UI.resetForNavigation();
   }
 
   function init() {

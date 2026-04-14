@@ -26,10 +26,10 @@ TAF.Settings = (function() {
 - For multiple‑choice questions, just write the correct option text.
 - For questions with **multiple blanks**, separate each answer with a pipe symbol (|) with spaces around it.
   Example: Q3: Treaty of Versailles | hyperinflation | worthless
+  Important: Make sure that one blank does not mean multiple blanks. Only use pipes when the question explicitly has several separate input fields.
 
 - If a question has the same answer repeated, just repeat the text.
-- Provide ONLY the Q&A lines, one per line, no extra commentary.
-- Make sure that one blank does not mean multiple blanks.`,
+- Provide ONLY the Q&A lines, one per line, no extra commentary.`,
     fillRangeStart: 1, fillRangeEnd: 999,
     panelX: null, panelY: null, panelWidth: 360, panelHeight: null
   };
@@ -44,7 +44,7 @@ TAF.Settings = (function() {
   function get(k) { return settings[k] ?? DEFAULTS[k]; }
   function set(k, v) { settings[k] = v; save(); }
   function reset() { settings = {...DEFAULTS}; save(); }
-  function getAll() { return {...settings}; }
+  function getAll() { return { ...settings }; }
 
   const SPEED_PRESETS = {
     turbo:   { enableRandomDelays: false, enableHumanTyping: false, enableCharTyping: false, questionDelay: 0 },

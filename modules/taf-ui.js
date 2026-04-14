@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Complete UI with speed chips, progress bar, optional fill range, and modal dragging fixes
+// toddlesux - Complete UI with state enum, structured import, navigation reset
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -7,7 +7,7 @@ window.TAF = window.TAF || {};
 TAF.UI = (function() {
   'use strict';
 
-  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI, toast, clearHighlights, highlight } = TAF.Utils;
+  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI, toast, clearHighlights } = TAF.Utils;
   const Settings = TAF.Settings;
   const Scanner = TAF.Scanner;
   const Filler = TAF.Filler;
@@ -25,6 +25,12 @@ TAF.UI = (function() {
   let currentRoot = null;
   let currentEntries = null;
   let parseDebounceTimer = null;
+
+  // --- UI State enum (VISIBLE | HIDDEN | EMERGENCY_LOCK) ---
+  function setUIState(state) {
+    if (!currentRoot) return;
+    currentRoot.dataset.state = state;
+  }
 
   function rebuildBulkButtons(root) {
     const row1 = root.querySelector('#taf-bulk-buttons-row1');
@@ -123,20 +129,22 @@ TAF.UI = (function() {
     }
   }
 
+  // --- Structured bulk import ---
   function parseBulkImport(textarea, entriesContainer, silent = false) {
     const raw = textarea.value.trim();
-    if (!raw) return;
+    if (!raw) return { ok: false, errors: ['No input'] };
 
     const lines = raw.split('\n');
     const parsed = [];
+    const errors = [];
 
     const patterns = [
       /^(?:Q(?:uestion)?\s*)?(\d+(?:\.\d+)?)[:.)]\s*(.+)$/i,
       /^(\d+(?:\.\d+)?)\s*[-–—]\s*(.+)$/
     ];
 
-    for (const line of lines) {
-      const trimmed = line.trim();
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
       if (!trimmed) continue;
 
       let matched = false;
@@ -157,14 +165,17 @@ TAF.UI = (function() {
         if (colonIdx > 0) {
           const keyword = trimmed.slice(0, colonIdx).trim();
           const answer = trimmed.slice(colonIdx + 1).trim();
-          if (keyword && answer) {
-            parsed.push({ key: keyword, val: answer });
-          }
+          if (keyword && answer) parsed.push({ key: keyword, val: answer });
+          else errors.push(`Line ${i+1}: invalid format`);
+        } else {
+          errors.push(`Line ${i+1}: no colon or dash`);
         }
       }
     }
 
-    if (parsed.length === 0) return;
+    if (parsed.length === 0) {
+      return { ok: false, errors: errors.length ? errors : ['No valid pairs found'] };
+    }
 
     entriesContainer.innerHTML = '';
     let added = 0;
@@ -178,6 +189,7 @@ TAF.UI = (function() {
       log(`Auto-parsed ${added} answer(s).`, 'ok');
       setStatus(`${added} LOADED`, true);
     }
+    return { ok: true, data: { count: added }, errors };
   }
 
   function addAnswerRow(container, key = '', value = '') {
@@ -190,11 +202,7 @@ TAF.UI = (function() {
     `;
     row.querySelector('.taf-del').addEventListener('click', () => row.remove());
     container.appendChild(row);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        row.classList.remove('taf-row-new');
-      });
-    });
+    requestAnimationFrame(() => requestAnimationFrame(() => row.classList.remove('taf-row-new')));
   }
 
   function getAnswersFromUI(container) {
@@ -215,7 +223,7 @@ TAF.UI = (function() {
   function buildSidebar() {
     const root = document.createElement('div');
     root.id = 'taf-root';
-    root.classList.add('taf-visible');
+    root.dataset.state = 'VISIBLE';
     currentRoot = root;
 
     const showAnswerRows = Settings.get('showAnswerRows');
@@ -297,7 +305,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" class="${showLogPanel ? 'visible' : ''}"></div>
         </div>
-        <div id="taf-footer">toddlesux v6.2 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v6.3 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -619,79 +627,48 @@ TAF.UI = (function() {
       }
     });
 
-    // ========== IMPROVED MODAL DRAGGING (on card, with cleanup & boundary) ==========
+    // Modal dragging
     const modalCard = modal.querySelector('.taf-modal-content');
     const modalHeaderDrag = modal.querySelector('.taf-modal-header');
-    
-    let isModalDragging = false;
-    let dragOffsetX = 0, dragOffsetY = 0;
-    let modalCardRect = null;
-    
+    let isModalDragging = false, dragOffsetX = 0, dragOffsetY = 0, modalCardRect = null;
     const onModalMouseMove = (e) => {
       if (!isModalDragging) return;
       e.preventDefault();
-      
-      const newLeft = e.clientX - dragOffsetX;
-      const newTop = e.clientY - dragOffsetY;
-      
-      const minX = 20 - modalCardRect.width;
-      const maxX = window.innerWidth - 20;
-      const minY = 20 - modalCardRect.height;
-      const maxY = window.innerHeight - 20;
-      
+      const newLeft = e.clientX - dragOffsetX, newTop = e.clientY - dragOffsetY;
+      const minX = 20 - modalCardRect.width, maxX = window.innerWidth - 20;
+      const minY = 20 - modalCardRect.height, maxY = window.innerHeight - 20;
       modalCard.style.left = Math.min(maxX, Math.max(minX, newLeft)) + 'px';
       modalCard.style.top = Math.min(maxY, Math.max(minY, newTop)) + 'px';
     };
-    
     const onModalMouseUp = () => {
       if (!isModalDragging) return;
       isModalDragging = false;
-      modalCard.style.transition = '';
-      modalCard.style.cursor = '';
-      
+      modalCard.style.transition = ''; modalCard.style.cursor = '';
       window.removeEventListener('mousemove', onModalMouseMove);
       window.removeEventListener('mouseup', onModalMouseUp);
     };
-    
     modalHeaderDrag.addEventListener('mousedown', (e) => {
       if (e.target.closest('button')) return;
-      
       e.preventDefault();
       isModalDragging = true;
-      
       modalCardRect = modalCard.getBoundingClientRect();
-      
       modalCard.style.position = 'fixed';
       modalCard.style.left = modalCardRect.left + 'px';
       modalCard.style.top = modalCardRect.top + 'px';
-      modalCard.style.right = 'auto';
-      modalCard.style.bottom = 'auto';
-      modalCard.style.margin = '0';
-      modalCard.style.transition = 'none';
-      modalCard.style.cursor = 'grabbing';
-      
+      modalCard.style.right = 'auto'; modalCard.style.bottom = 'auto'; modalCard.style.margin = '0';
+      modalCard.style.transition = 'none'; modalCard.style.cursor = 'grabbing';
       dragOffsetX = e.clientX - modalCardRect.left;
       dragOffsetY = e.clientY - modalCardRect.top;
-      
       window.addEventListener('mousemove', onModalMouseMove);
       window.addEventListener('mouseup', onModalMouseUp);
     });
-    
     const resetModalPosition = () => {
-      modalCard.style.position = '';
-      modalCard.style.left = '';
-      modalCard.style.top = '';
-      modalCard.style.right = '';
-      modalCard.style.bottom = '';
-      modalCard.style.margin = '';
-      modalCard.style.cursor = '';
+      modalCard.style.position = ''; modalCard.style.left = ''; modalCard.style.top = '';
+      modalCard.style.right = ''; modalCard.style.bottom = ''; modalCard.style.margin = ''; modalCard.style.cursor = '';
     };
-    
     const modalObserver = new MutationObserver((mutations) => {
       mutations.forEach((mut) => {
-        if (mut.attributeName === 'class' && modal.classList.contains('hidden')) {
-          resetModalPosition();
-        }
+        if (mut.attributeName === 'class' && modal.classList.contains('hidden')) resetModalPosition();
       });
     });
     modalObserver.observe(modal, { attributes: true });
@@ -733,7 +710,7 @@ TAF.UI = (function() {
     // Event listeners
     root.querySelector('#taf-btn-add').addEventListener('click', () => addAnswerRow(entries));
     root.querySelector('#taf-btn-run').addEventListener('click', () => {
-      if (Filler.isRunning()) Filler.stopFill();
+      if (Filler.isFilling()) Filler.stopFill();
       else {
         const answers = getAnswersFromUI(entries);
         const start = rangeStart ? parseInt(rangeStart.value) || 1 : 1;
@@ -746,7 +723,7 @@ TAF.UI = (function() {
       refreshDisabledTab(modal, root, entries, bulkText);
     });
     root.querySelector('#taf-close-btn').addEventListener('click', () => {
-      root.classList.add('taf-emergency-hidden');
+      setUIState('EMERGENCY_LOCK');
       toast(`Panel closed. Press ${Settings.get('hotkey')} to reopen.`, 'info');
     });
     modal.querySelectorAll('.taf-modal-close').forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
@@ -785,7 +762,7 @@ TAF.UI = (function() {
 
       Settings.applyTheme();
       document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
-      document.getElementById('taf-log').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
+      document.getElementById('taf-log').classList.toggle('visible', Settings.get('showLogPanel'));
       document.getElementById('taf-ai-section').style.display = Settings.get('showAISection') ? 'block' : 'none';
       document.getElementById('taf-fill-range-container').style.display = Settings.get('showFillRange') ? 'flex' : 'none';
       
@@ -801,7 +778,7 @@ TAF.UI = (function() {
       tutorial.id = 'taf-tutorial-overlay';
       tutorial.innerHTML = `
         <div class="taf-tutorial-card">
-          <h2>👋 Welcome to toddlesux v6.2</h2>
+          <h2>👋 Welcome to toddlesux v6.3</h2>
           <p>Auto‑fill Toddle forms with human‑like delays.<br>
           <strong>Drag</strong> header to move, <strong>resize</strong> from corner.<br>
           Press <strong>${Settings.get('hotkey')}</strong> to hide/show — double‑tap to reset position.<br>
@@ -818,5 +795,15 @@ TAF.UI = (function() {
     }
   }
 
-  return { buildSidebar, addAnswerRow, getAnswersFromUI };
+  // Navigation reset
+  function resetForNavigation() {
+    if (currentRoot) {
+      currentRoot.dataset.state = 'VISIBLE';
+    }
+    Scanner.invalidateCache();
+    const prog = document.getElementById('taf-progress-bar');
+    if (prog) prog.style.width = '0%';
+  }
+
+  return { buildSidebar, addAnswerRow, getAnswersFromUI, resetForNavigation };
 })();
