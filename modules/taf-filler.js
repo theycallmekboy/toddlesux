@@ -1,5 +1,5 @@
 // modules/taf-filler.js
-// toddlesux - Fill logic with auto-scroll, range, preview, and retry
+// toddlesux - Fill logic with auto-scroll, range, and retry (no preview)
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -12,9 +12,6 @@ TAF.Filler = (function() {
   const Scanner = TAF.Scanner;
 
   let abortController = null;
-  let previewMode = false;
-
-  function setPreviewMode(enabled) { previewMode = enabled; }
 
   async function humanDelay() {
     if (!Settings.get('enableRandomDelays')) return;
@@ -23,18 +20,13 @@ TAF.Filler = (function() {
   }
 
   function scrollToElement(el) {
-    if (!el || previewMode) return;
+    if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   async function fillBlock(block, answerArray, label, retries = 2) {
     const firstAns = answerArray[0]?.trim() || '';
     const firstAnsLo = firstAns.toLowerCase();
-
-    const logPreview = (msg, type = 'info') => {
-      if (previewMode) log(`[PREVIEW] ${msg}`, 'info');
-      else log(msg, type);
-    };
 
     // Multiple choice
     const optsContainer = block.querySelector(Scanner.OPTIONS_CONTAINER_SELECTOR);
@@ -44,13 +36,11 @@ TAF.Filler = (function() {
         const txt = item.textContent.trim().toLowerCase();
         if (txt.includes(firstAnsLo) || firstAnsLo.includes(txt)) {
           scrollToElement(item);
-          if (!previewMode) {
-            const input = item.querySelector('input[type="radio"], input[type="checkbox"]');
-            if (input) { if (!input.checked) { input.click(); input.dispatchEvent(new Event('change', {bubbles:true})); } }
-            else item.click();
-            highlight(item);
-          }
-          logPreview(`MC → "${firstAns}"`, 'ok');
+          const input = item.querySelector('input[type="radio"], input[type="checkbox"]');
+          if (input) { if (!input.checked) { input.click(); input.dispatchEvent(new Event('change', {bubbles:true})); } }
+          else item.click();
+          highlight(item);
+          log(`MC → "${firstAns}"`, 'ok');
           await sleep(Settings.get('questionDelay') || 0);
           return true;
         }
@@ -63,8 +53,9 @@ TAF.Filler = (function() {
       const lTxt = (labelEl?.textContent || r.value || '').trim().toLowerCase();
       if (lTxt.includes(firstAnsLo) || firstAnsLo.includes(lTxt)) {
         scrollToElement(r);
-        if (!previewMode) { if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); } highlight(labelEl||r); }
-        logPreview(`Radio → "${firstAns}"`, 'ok');
+        if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); }
+        highlight(labelEl||r);
+        log(`Radio → "${firstAns}"`, 'ok');
         await sleep(Settings.get('questionDelay') || 0);
         return true;
       }
@@ -78,42 +69,41 @@ TAF.Filler = (function() {
       for (let i = 0; i < textEls.length && i < answerArray.length; i++) {
         const inp = textEls[i], ans = answerArray[i];
         if (!ans) continue;
-        if (!previewMode) {
-          inp.focus();
-          if (inp.contentEditable === 'true') {
-            inp.innerHTML = ans;
-            inp.dispatchEvent(new Event('input', {bubbles:true}));
-          } else {
-            setNativeValue(inp, ans);
-            inp.dispatchEvent(new Event('input', {bubbles:true}));
-            inp.dispatchEvent(new Event('change', {bubbles:true}));
-            inp.blur();
-          }
-          highlight(inp);
+        inp.focus();
+        if (inp.contentEditable === 'true') {
+          inp.innerHTML = ans;
+          inp.dispatchEvent(new Event('input', {bubbles:true}));
+        } else {
+          setNativeValue(inp, ans);
+          inp.dispatchEvent(new Event('input', {bubbles:true}));
+          inp.dispatchEvent(new Event('change', {bubbles:true}));
+          inp.blur();
         }
+        highlight(inp);
         filled++;
         await humanDelay();
       }
-      if (filled) { logPreview(`Text → ${filled} blanks`, 'ok'); return true; }
+      if (filled) { log(`Text → ${filled} blanks`, 'ok'); return true; }
     }
 
     // Custom dropdown with retry
     const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
     if (drop && retries > 0) {
-      if (!previewMode) drop.click();
+      drop.click();
       await sleep(400);
       const items = [...document.querySelectorAll('[role="option"], [role="listitem"]')];
       const match = items.find(i => i.textContent.trim().toLowerCase().includes(firstAnsLo));
       if (match) {
         scrollToElement(match);
-        if (!previewMode) { match.click(); highlight(match); }
-        logPreview(`Dropdown → "${firstAns}"`, 'ok');
+        match.click();
+        highlight(match);
+        log(`Dropdown → "${firstAns}"`, 'ok');
         return true;
       }
       if (retries > 0) return fillBlock(block, answerArray, label, retries - 1);
     }
 
-    logPreview(`No match for "${firstAns}"`, 'warn');
+    log(`No match for "${firstAns}"`, 'warn');
     return false;
   }
 
@@ -137,16 +127,16 @@ TAF.Filler = (function() {
     const end = rangeEnd ?? Settings.get('fillRangeEnd');
 
     TAF.Utils.clearLog();
-    setStatus(previewMode ? 'PREVIEW' : 'RUNNING', true);
+    setStatus('RUNNING', true);
     const btn = document.getElementById('taf-btn-run');
-    if (btn) { btn.textContent = previewMode ? '👁 Preview' : '⬛ Stop'; btn.classList.add('stop'); }
+    if (btn) { btn.textContent = '⬛ Stop'; btn.classList.add('stop'); }
 
     try {
       const blocks = Scanner.findQuestionBlocks();
       if (!blocks.length) { toast('No questions found', 'warn'); return; }
 
       const total = Math.min(end, blocks.length) - start + 1;
-      log(`${previewMode?'Previewing':'Processing'} ${total} questions (${start}-${Math.min(end, blocks.length)})`, 'info');
+      log(`Processing ${total} questions (${start}-${Math.min(end, blocks.length)})`, 'info');
       
       let filled = 0;
       const progressBar = document.getElementById('taf-progress-bar');
@@ -167,13 +157,13 @@ TAF.Filler = (function() {
 
       if (!signal.aborted) {
         log(`${filled}/${total} filled`, filled ? 'ok' : 'warn');
-        setStatus(previewMode ? 'DONE' : `${filled} DONE`, true);
+        setStatus(`${filled} DONE`, true);
       } else {
         toast('Stopped', 'info');
       }
     } finally {
       abortController = null;
-      if (btn) { btn.textContent = previewMode ? '👁 Preview' : '▶ Fill now'; btn.classList.remove('stop'); }
+      if (btn) { btn.textContent = '▶ Fill now'; btn.classList.remove('stop'); }
       const prog = document.getElementById('taf-progress-bar');
       if (prog) prog.style.width = '0%';
     }
@@ -182,5 +172,5 @@ TAF.Filler = (function() {
   function stopFill() { if (abortController) abortController.abort(); }
   function isRunning() { return abortController !== null; }
 
-  return { runFill, stopFill, isRunning, setPreviewMode };
+  return { runFill, stopFill, isRunning };
 })();

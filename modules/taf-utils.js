@@ -10,7 +10,6 @@ TAF.Utils = (function() {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const escHtml = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-  // Toast container (renamed from toast to avoid shadowing)
   let toastContainer = null;
   function getToastContainer() {
     if (!toastContainer) {
@@ -28,10 +27,25 @@ TAF.Utils = (function() {
     const icons = { success: '✅', error: '❌', info: 'ℹ️', warn: '⚠️' };
     toastEl.innerHTML = `<span>${icons[type] || 'ℹ️'}</span> ${escHtml(message)}`;
     container.appendChild(toastEl);
-    setTimeout(() => {
-      toastEl.classList.add('hiding');
-      setTimeout(() => toastEl.remove(), 200);
-    }, duration);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toastEl.classList.add('taf-toast-in');
+      });
+    });
+
+    const removeToast = () => {
+      if (toastEl.isConnected) {
+        toastEl.classList.add('hiding');
+        const onTransitionEnd = () => {
+          if (toastEl.isConnected) toastEl.remove();
+          toastEl.removeEventListener('transitionend', onTransitionEnd);
+        };
+        toastEl.addEventListener('transitionend', onTransitionEnd);
+        setTimeout(() => { if (toastEl.isConnected) toastEl.remove(); }, 500);
+      }
+    };
+    setTimeout(removeToast, duration);
   }
 
   const log = (msg, type = 'info') => {
@@ -62,7 +76,7 @@ TAF.Utils = (function() {
 
   const highlight = (el) => {
     if (!el) return;
-    el.classList.add('taf-filled-ok'); // Persistent - cleared manually
+    el.classList.add('taf-filled-ok');
   };
 
   const clearHighlights = () => {
@@ -93,7 +107,7 @@ TAF.Utils = (function() {
     }
   };
 
-  // Shared streaming helper (OpenAI/GitHub/Groq format)
+  // Shared streaming helper
   async function streamCompat(response, onChunk) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -117,7 +131,6 @@ TAF.Utils = (function() {
     return full;
   }
 
-  // Multi-provider AI with consolidated streaming
   async function callAI(prompt, onChunk) {
     const provider = TAF.Settings.get('aiProvider');
     const model = TAF.Settings.get(provider + 'Model');
@@ -178,7 +191,6 @@ TAF.Utils = (function() {
 
       if (onChunk) {
         if (provider === 'claude') {
-          // Claude streaming (SSE)
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let full = '';

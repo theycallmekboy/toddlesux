@@ -12,14 +12,24 @@ TAF.Settings = (function() {
     enableRandomDelays: true, minDelay: 300, maxDelay: 900,
     enableHumanTyping: false, humanTypingChance: 0.2,
     enableCharTyping: false, charTypingDelay: 50, questionDelay: 500,
-    showAnswerRows: true, showLogPanel: true, showAISection: true, hotkey: 'Delete',
+    showAnswerRows: true, showLogPanel: true, showAISection: true, showFillRange: false, hotkey: 'Delete',
     accentColor: '#ff3b30', backgroundColor: '#000000', blurIntensity: 20,
-    showClearAll: true, showPaste: true, showAiPrompt: true, showCopyQuestions: true,
-    showClearHighlights: true, showClearAllAnswers: true,
+    showPaste: true, showAiPrompt: true, showCopyQuestions: true, showClearHighlights: true,
     aiProvider: 'openai', openaiApiKey: '', geminiApiKey: '', claudeApiKey: '', githubToken: '', groqApiKey: '',
     openaiModel: 'gpt-4o-mini', geminiModel: 'gemini-2.0-flash', claudeModel: 'claude-3-haiku-20240307',
     githubModel: 'gpt-4o', groqModel: 'llama-3.3-70b-versatile',
-    aiPrompt: 'Format: Q1: answer | answer2...',
+    aiPrompt: `Format your answers exactly like this for toddlesux:
+
+- Start each line with Q followed by the question number, then a colon, then the answer.
+  Example: Q1: Britain, France, Russia
+
+- For multiple‑choice questions, just write the correct option text.
+- For questions with **multiple blanks**, separate each answer with a pipe symbol (|) with spaces around it.
+  Example: Q3: Treaty of Versailles | hyperinflation | worthless
+
+- If a question has the same answer repeated, just repeat the text.
+- Provide ONLY the Q&A lines, one per line, no extra commentary.
+- Make sure that one blank does not mean multiple blanks.`,
     fillRangeStart: 1, fillRangeEnd: 999,
     panelX: null, panelY: null, panelWidth: 360, panelHeight: null
   };
