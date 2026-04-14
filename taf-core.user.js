@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      6.3
+// @version      6.5
 // @description  Optimized Toddle autofill with AI, human simulation, and advanced features
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
@@ -9,6 +9,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_xmlhttpRequest
 // @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-utils.js
 // @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-styles.js
 // @require      https://raw.githubusercontent.com/theycallmekboy/toddlesux/refs/heads/test/modules/taf-settings.js
@@ -27,19 +28,20 @@
   TAF.__isFilling = () => isFilling;
   TAF.__setFilling = (v) => { isFilling = v; };
 
-  // --- Hotkey safety ---
-  const isTyping = () => {
-    const el = document.activeElement;
-    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable || el.getAttribute('role') === 'textbox');
-  };
-
   let lastHotkeyTime = 0;
   const DOUBLE_TAP_MS = 300;
 
   document.addEventListener('keydown', (e) => {
     if (!window.TAF || !TAF.Settings) return;
     
-    // Don't trigger while user is typing
+    const hotkey = TAF.Settings.get('hotkey') || 'Delete';
+    const isMainHotkey = e.key === hotkey;
+    const isScanHotkey = e.ctrlKey && e.shiftKey && e.key === 'F';
+    const isFillHotkey = e.ctrlKey && e.key === 'Enter';
+
+    if (!isMainHotkey && !isScanHotkey && !isFillHotkey) return;
+
+    // --- Hotkey safety (only check if it's one of our keys) ---
     const active = document.activeElement;
     const isTyping = active && (
       active.tagName === 'INPUT' || 
@@ -49,38 +51,40 @@
     );
     if (isTyping) return;
 
-    const hotkey = TAF.Settings.get('hotkey') || 'Delete';
+    const root = document.getElementById('taf-root');
+    if (!root) return;
     
-    if (e.key === hotkey) {
+    if (isMainHotkey) {
       e.preventDefault();
-      const root = document.getElementById('taf-root');
-      if (!root) return;
-
       const now = Date.now();
       const isDoubleTap = (now - lastHotkeyTime) < DOUBLE_TAP_MS;
       lastHotkeyTime = now;
 
-      if (isDoubleTap && root.classList.contains('taf-visible') && !root.classList.contains('taf-emergency-hidden')) {
+      if (isDoubleTap) {
+        // Reset position regardless of current visibility
         TAF.Settings.set('panelX', null);
         TAF.Settings.set('panelY', null);
         TAF.Settings.set('panelWidth', 360);
         TAF.Settings.set('panelHeight', null);
         root.style.left = ''; root.style.top = '50%'; root.style.right = '20px'; root.style.transform = 'translateY(-50%)'; root.style.width = '360px'; root.style.height = '';
+        root.dataset.state = 'VISIBLE';
         if (TAF.Utils) TAF.Utils.toast('Panel position reset', 'info');
         return;
       }
 
-      root.classList.toggle('taf-emergency-hidden');
-      if (TAF.Utils) TAF.Utils.toast(`Panel ${root.classList.contains('taf-emergency-hidden') ? 'hidden' : 'shown'}`, 'info');
+      // Normal toggle
+      const currentState = root.dataset.state;
+      const newState = currentState === 'EMERGENCY_LOCK' ? 'VISIBLE' : 'EMERGENCY_LOCK';
+      root.dataset.state = newState;
+      if (TAF.Utils) TAF.Utils.toast(`Panel ${newState === 'EMERGENCY_LOCK' ? 'hidden' : 'shown'}`, 'info');
     }
 
-    if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+    if (isScanHotkey) {
       e.preventDefault();
-      if (!isTyping() && TAF.Scanner) TAF.Scanner.scanPage();
+      if (TAF.Scanner) TAF.Scanner.scanPage();
     }
-    if (e.ctrlKey && e.key === 'Enter') {
-      const root = document.getElementById('taf-root');
-      if (root && !root.classList.contains('taf-emergency-hidden') && !isTyping()) {
+    if (isFillHotkey) {
+      if (root.dataset.state === 'VISIBLE') {
         e.preventDefault();
         const btn = document.getElementById('taf-btn-run');
         if (btn && !isFilling) btn.click();

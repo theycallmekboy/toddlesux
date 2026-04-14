@@ -16,7 +16,7 @@ TAF.Styles = (function() {
       #taf-root *, #taf-settings-modal * { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
       #taf-root *, #taf-settings-modal * { transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.2s ease, transform 0.2s cubic-bezier(0.2, 0.9, 0.4, 1); }
 
-      #taf-root { position: fixed; width: 360px; min-width: 280px; min-height: 400px; z-index: 2147483647; resize: both; overflow: auto; }
+      #taf-root { position: fixed; width: 360px; min-width: 280px; min-height: 400px; z-index: 2147483647; overflow: hidden; }
       #taf-root[data-state="VISIBLE"] { visibility: visible; pointer-events: auto; opacity: 1; animation: taf-fade-in 0.3s ease; }
       #taf-root[data-state="HIDDEN"] { visibility: hidden; pointer-events: none; opacity: 0; }
       #taf-root[data-state="EMERGENCY_LOCK"] { display: none !important; }
@@ -89,7 +89,7 @@ TAF.Styles = (function() {
 
       #taf-settings-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483648; display: flex; align-items: center; justify-content: center; visibility: hidden; opacity: 0; transition: opacity 0.2s ease, visibility 0.2s; pointer-events: none; }
       #taf-settings-modal:not(.hidden) { visibility: visible; opacity: 1; pointer-events: auto; }
-      #taf-settings-modal.hidden { display: none !important; }
+      #taf-settings-modal.hidden { }
       .taf-modal-content { background: rgba(20,20,20,0.9); backdrop-filter: blur(30px); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 28px; width: 520px; max-width: 90vw; padding: 24px; box-shadow: 0 30px 50px rgba(0,0,0,0.8); position: relative; overflow: auto; resize: both; min-width: 420px; min-height: 500px; pointer-events: all; }
       .taf-modal-resize-handle { position: absolute; bottom: 4px; right: 4px; width: 20px; height: 20px; cursor: nwse-resize; z-index: 10; }
       .taf-modal-resize-handle::after { content: ''; position: absolute; bottom: 3px; right: 3px; width: 8px; height: 8px; border-right: 2px solid rgba(255,255,255,0.3); border-bottom: 2px solid rgba(255,255,255,0.3); }

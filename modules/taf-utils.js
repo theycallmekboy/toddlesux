@@ -73,22 +73,36 @@ TAF.Utils = (function() {
     catch { showToast('Clipboard failed', 'error'); return false; }
   };
 
-  // --- Streaming abstraction (supports OpenAI SSE & Anthropic NDJSON) ---
-  async function streamCompat(response, onChunk, format = 'openai') {
-    const reader = response.body.getReader(), decoder = new TextDecoder(); let full = '', buffer = '';
-    while (true) {
-      const { done, value } = await reader.read(); if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n'); buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        if (format === 'openai' && line.startsWith('data: ')) {
-          const data = line.slice(6); if (data === '[DONE]') continue;
-          try { const p = JSON.parse(data); const c = p.choices?.[0]?.delta?.content || ''; full += c; onChunk(c, full); } catch {}
+  // --- SSE Parsing with line buffering ---
+  let sseBuffer = '';
+  function parseSSEIncremental(text, onChunk, format) {
+    sseBuffer += text;
+    let full = '';
+    const lines = sseBuffer.split('\n');
+    sseBuffer = lines.pop(); // Keep partial line in buffer
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      
+      const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
+      if (dataStr === '[DONE]') continue;
+
+      try {
+        const p = JSON.parse(dataStr);
+        let chunk = '';
+        if (format === 'openai') {
+          chunk = p.choices?.[0]?.delta?.content || '';
         } else if (format === 'anthropic') {
-          try { const p = JSON.parse(line); if (p.type === 'content_block_delta') { const c = p.delta?.text || ''; full += c; onChunk(c, full); } } catch {}
+          if (p.type === 'content_block_delta') chunk = p.delta?.text || '';
+        } else if (format === 'gemini') {
+          chunk = p.candidates?.[0]?.content?.parts?.[0]?.text || p.content?.parts?.[0]?.text || '';
         }
-      }
+        if (chunk) {
+          full += chunk;
+          if (onChunk) onChunk(chunk, full);
+        }
+      } catch (e) {}
     }
     return full;
   }
@@ -99,22 +113,54 @@ TAF.Utils = (function() {
 
     const configs = {
       openai: { url: 'https://api.openai.com/v1/chat/completions', key: TAF.Settings.get('openaiApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }), format: 'openai' },
-      gemini: { url: () => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${TAF.Settings.get('geminiApiKey')}`, key: TAF.Settings.get('geminiApiKey'), headers: () => ({ 'Content-Type': 'application/json' }), body: () => ({ contents: [{ parts: [{ text: prompt }] }] }), parse: (d) => d.candidates?.[0]?.content?.parts?.[0]?.text || '' },
+      gemini: { url: () => `https://generativelanguage.googleapis.com/v1beta/models/${model}:${onChunk ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${TAF.Settings.get('geminiApiKey')}`, key: TAF.Settings.get('geminiApiKey'), headers: () => ({ 'Content-Type': 'application/json' }), body: () => ({ contents: [{ parts: [{ text: prompt }] }] }), format: 'gemini' },
       claude: { url: 'https://api.anthropic.com/v1/messages', key: TAF.Settings.get('claudeApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'x-api-key': k, 'anthropic-version': '2023-06-01' }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0.3, stream: !!onChunk }), format: 'anthropic' },
       github: { url: 'https://models.inference.ai.azure.com/chat/completions', key: TAF.Settings.get('githubToken'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }), format: 'openai' },
       groq: { url: 'https://api.groq.com/openai/v1/chat/completions', key: TAF.Settings.get('groqApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }), format: 'openai' }
     };
+    
     const cfg = configs[provider];
     if (!cfg) { showToast(`Unknown provider: ${provider}`, 'error'); return null; }
     if (!cfg.key) { showToast(`${provider} API key not set`, 'error'); return null; }
-    try {
+
+    return new Promise((resolve) => {
       const url = typeof cfg.url === 'function' ? cfg.url() : cfg.url;
-      const res = await fetch(url, { method: 'POST', headers: cfg.headers(cfg.key), body: JSON.stringify(cfg.body(model)) });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'API error'); }
-      if (provider === 'gemini') { const d = await res.json(); const t = cfg.parse(d); if (onChunk) onChunk(t, t); return t; }
-      if (onChunk) return await streamCompat(res, onChunk, cfg.format);
-      else { const d = await res.json(); return d.choices?.[0]?.message?.content || d.content?.[0]?.text || ''; }
-    } catch (err) { showToast(`AI error: ${err.message}`, 'error'); return null; }
+      const body = JSON.stringify(cfg.body(model));
+      let lastIndex = 0;
+      let totalText = '';
+      sseBuffer = ''; // Reset buffer for new call
+      
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: url,
+        headers: cfg.headers(cfg.key),
+        data: body,
+        onprogress: (response) => {
+          if (!onChunk || !response.responseText) return;
+          const newPart = response.responseText.slice(lastIndex);
+          lastIndex = response.responseText.length;
+          totalText += parseSSEIncremental(newPart, onChunk, cfg.format);
+        },
+        onload: (response) => {
+          if (response.status >= 200 && response.status < 300) {
+            if (lastIndex < response.responseText.length) {
+              const remaining = response.responseText.slice(lastIndex);
+              totalText += parseSSEIncremental(remaining, onChunk, cfg.format);
+            }
+            resolve(totalText);
+          } else {
+            let errorMsg = 'API error';
+            try { const e = JSON.parse(response.responseText); errorMsg = e.error?.message || errorMsg; } catch {}
+            showToast(`AI error: ${errorMsg}`, 'error');
+            resolve(null);
+          }
+        },
+        onerror: (err) => {
+          showToast(`AI request failed: ${err.statusText || 'Network Error'}`, 'error');
+          resolve(null);
+        }
+      });
+    });
   }
 
   return { sleep, escHtml, log, clearLog, setStatus, highlight, clearHighlights, setNativeValue, copyToClipboard, callAI, toast: showToast };

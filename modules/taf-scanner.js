@@ -19,11 +19,11 @@ TAF.Scanner = (function() {
 
   function findQuestionBlocks() {
     if (cacheValid && cachedBlocks) return cachedBlocks;
+    cacheValid = true;
     const cards = document.querySelectorAll(QUESTION_SELECTOR);
     cachedBlocks = [...cards].filter(el => 
       el.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"], ' + OPTIONS_CONTAINER_SELECTOR)
     );
-    cacheValid = true;
     return cachedBlocks;
   }
 

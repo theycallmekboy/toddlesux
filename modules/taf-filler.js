@@ -35,19 +35,22 @@ TAF.Filler = (function() {
     const q = questionText.trim().toLowerCase();
     const a = answerText.trim().toLowerCase();
     if (q === a) return true;
-    const qTokens = q.split(/\s+/).filter(t => t.length > 1);
-    const aTokens = a.split(/\s+/).filter(t => t.length > 1);
+    
+    // Support single characters (like A, B, 1)
+    const qTokens = q.split(/\s+/).filter(t => t.length >= 1);
+    const aTokens = a.split(/\s+/).filter(t => t.length >= 1);
+    
     if (qTokens.length && aTokens.length && qTokens.every(t => aTokens.includes(t))) return true;
     return false;
   }
 
-  // --- Event-driven dropdown wait (scoped to block) ---
   function waitForDropdownItems(block, timeout = 1000) {
     return new Promise((resolve) => {
       const start = Date.now();
       const check = () => {
-        const items = block.querySelectorAll('[role="option"], [role="listitem"]');
-        if (items.length > 0) resolve(true);
+        const localItems = block.querySelectorAll('[role="option"], [role="listitem"]');
+        const globalItems = document.querySelectorAll('body > [role="listbox"] [role="option"], body > div [role="option"]');
+        if (localItems.length > 0 || globalItems.length > 0) resolve(true);
         else if (Date.now() - start > timeout) resolve(false);
         else requestAnimationFrame(check);
       };
@@ -56,10 +59,11 @@ TAF.Filler = (function() {
   }
 
   async function fillBlock(block, answerArray, label, retries = 2) {
+    if (!answerArray?.length) return false;
+    let anyFilled = false;
     const firstAns = answerArray[0]?.trim() || '';
-    const firstAnsLo = firstAns.toLowerCase();
 
-    // 1. Multiple choice (scoped)
+    // 1. Multiple choice
     const optsContainer = block.querySelector(Scanner.OPTIONS_CONTAINER_SELECTOR);
     if (optsContainer) {
       const items = optsContainer.querySelectorAll(Scanner.OPTION_ITEM_SELECTOR);
@@ -71,92 +75,133 @@ TAF.Filler = (function() {
           else item.click();
           highlight(item);
           log(`MC → "${firstAns}"`, 'ok');
-          await questionDelay();
-          return true;
+          anyFilled = true;
+          break;
         }
       }
     }
 
-    // 2. Radio/checkbox (scoped, strict matching)
-    for (const r of block.querySelectorAll('input[type="radio"], input[type="checkbox"]')) {
-      const lbl = r.labels?.[0] || r.closest('label') || r.parentElement;
-      if (matchesAnswer(lbl?.textContent || r.value || '', firstAns)) {
-        scrollToElement(r);
-        if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); }
-        highlight(lbl || r);
-        log(`Radio → "${firstAns}"`, 'ok');
-        await questionDelay();
-        return true;
-      }
-    }
-
-    // 3. Dropdown (scoped, event-driven)
-    const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
-    if (drop) {
-      drop.click();
-      const opened = await waitForDropdownItems(block);
-      if (opened) {
-        const items = block.querySelectorAll('[role="option"], [role="listitem"]');
-        const match = [...items].find(i => matchesAnswer(i.textContent, firstAns));
-        if (match) {
-          scrollToElement(match);
-          match.click();
-          highlight(match);
-          log(`Dropdown → "${firstAns}"`, 'ok');
-          await questionDelay();
-          return true;
+    // 2. Radio/checkbox (if not already filled by MC)
+    if (!anyFilled) {
+      for (const r of block.querySelectorAll('input[type="radio"], input[type="checkbox"]')) {
+        const lbl = r.labels?.[0] || r.closest('label') || r.parentElement;
+        if (matchesAnswer(lbl?.textContent || r.value || '', firstAns)) {
+          scrollToElement(r);
+          if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); }
+          highlight(lbl || r);
+          log(`Radio → "${firstAns}"`, 'ok');
+          anyFilled = true;
+          break;
         }
       }
-      log(`Dropdown item not found for "${firstAns}"`, 'warn');
-      if (retries > 0) return fillBlock(block, answerArray, label, retries - 1);
-      return false;
     }
 
-    // 4. Text inputs (safe contenteditable)
+    // 3. Dropdown
+    if (!anyFilled) {
+      const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
+      if (drop) {
+        drop.click();
+        const opened = await waitForDropdownItems(block);
+        if (opened) {
+          const items = [...block.querySelectorAll('[role="option"], [role="listitem"]'), ...document.querySelectorAll('body > [role="listbox"] [role="option"], body > div [role="option"]')];
+          const match = items.find(i => {
+            const text = i.querySelector('[class*="Option__text"], span, div')?.textContent || i.textContent;
+            return matchesAnswer(text, firstAns);
+          });
+          if (match) {
+            scrollToElement(match);
+            match.click();
+            highlight(match);
+            log(`Dropdown → "${firstAns}"`, 'ok');
+            anyFilled = true;
+          } else {
+            log(`Dropdown item not found for "${firstAns}"`, 'warn');
+          }
+        } else if (retries > 0) {
+          log(`Retrying dropdown...`, 'warn');
+          await sleep(200);
+          return fillBlock(block, answerArray, label, retries - 1);
+        }
+      }
+    }
+
+    // 4. Text inputs (ALWAYS attempt, even if MC/Radio was filled, to support justification boxes)
     const textEls = [...block.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea, [contenteditable="true"]')];
     if (textEls.length) {
       scrollToElement(block);
-      let filled = 0;
-      for (let i = 0; i < textEls.length && i < answerArray.length; i++) {
-        const inp = textEls[i], ans = answerArray[i]; if (!ans) continue;
+      let filledCount = 0;
+      // If we filled a radio/MC, we might want to use the SECOND part of the answer array for the text box
+      // e.g., Q1: Option A | Because it is correct
+      const textStartIndex = anyFilled ? 1 : 0;
+      
+      for (let i = 0; i < textEls.length; i++) {
+        const ansIndex = textStartIndex + i;
+        const ans = answerArray[ansIndex];
+        if (!ans) continue;
+        
+        const inp = textEls[i];
         inp.focus();
-        if (inp.contentEditable === 'true') {
-          inp.textContent = ans;  // Safe: no HTML parsing
-          inp.dispatchEvent(new Event('input', {bubbles:true}));
+        const useHuman = Settings.get('enableCharTyping');
+        const useMistakes = Settings.get('enableHumanTyping');
+
+        if (useHuman) {
+          let currentStr = '';
+          for (let c = 0; c < ans.length; c++) {
+            if (useMistakes && Math.random() < Settings.get('humanTypingChance') && c > 0 && c < ans.length - 1) {
+              const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+              await setAndDispatch(inp, currentStr + wrongChar);
+              await sleep(Settings.get('charTypingDelay') * 1.5);
+              await setAndDispatch(inp, currentStr);
+              await sleep(Settings.get('charTypingDelay'));
+            }
+            currentStr += ans[c];
+            await setAndDispatch(inp, currentStr);
+            await sleep(Settings.get('charTypingDelay') + (Math.random() * 20));
+          }
         } else {
-          setNativeValue(inp, ans);
-          inp.dispatchEvent(new Event('input', {bubbles:true}));
-          inp.dispatchEvent(new Event('change', {bubbles:true}));
-          inp.blur();
+          await setAndDispatch(inp, ans);
         }
+        inp.blur();
         highlight(inp);
-        filled++;
-        await humanDelay();
+        filledCount++;
       }
-      if (filled) { log(`Text → ${filled} blanks`, 'ok'); return true; }
+      if (filledCount) {
+        log(`Text → ${filledCount} blanks`, 'ok');
+        anyFilled = true;
+      }
     }
 
-    log(`No match for "${firstAns}"`, 'warn');
-    return false;
+    if (anyFilled) await questionDelay();
+    return anyFilled;
+  }
+
+  async function setAndDispatch(el, val) {
+    if (el.contentEditable === 'true') { el.textContent = val; }
+    else { setNativeValue(el, val); }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   function findAnswer(answers, block, index) {
-    // 1. Exact qN key
+    const label = Scanner.getQuestionLabel(block).toLowerCase();
+    
+    // 1. Extract question number from label (e.g., "1.1" -> "q1.1")
+    const numMatch = label.match(/^(\d+(\.\d+)?)/);
+    if (numMatch) {
+      const qKey = "q" + numMatch[1];
+      if (answers[qKey]) return answers[qKey];
+    }
+
+    // 2. Exact qN key by index
     const key = `q${index+1}`;
     if (answers[key]) return answers[key];
     
-    const label = Scanner.getQuestionLabel(block).toLowerCase();
-    
-    // 2. Keyword match (whole word)
+    // 3. Keyword/Phrase match (word boundary)
     for (const [k, v] of Object.entries(answers)) {
       if (/^q\d+(\.\d+)?$/.test(k)) continue;
-      if (label.split(/\s+/).includes(k)) return v;
-    }
-    
-    // 3. Fallback: match answer key against the question label text
-    for (const [k, v] of Object.entries(answers)) {
-      if (/^q\d+(\.\d+)?$/.test(k)) continue;
-      if (label.includes(k)) return v;
+      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedK}\\b`, 'i');
+      if (regex.test(label)) return v;
     }
     
     return null;
@@ -164,6 +209,8 @@ TAF.Filler = (function() {
 
   async function runFill(answersMap, rangeStart = null, rangeEnd = null) {
     if (TAF.__isFilling && TAF.__isFilling()) { toast('Fill already running', 'warn'); return; }
+    if (TAF.UI && TAF.UI.clearParseDebounce) TAF.UI.clearParseDebounce();
+    
     if (abortController) abortController.abort();
     abortController = new AbortController(); const signal = abortController.signal;
     TAF.__setFilling(true); isRunning = true;
@@ -180,7 +227,6 @@ TAF.Filler = (function() {
     const prog = document.getElementById('taf-progress-bar'), progTxt = document.getElementById('taf-progress-text');
 
     try {
-      // Get initial list of test IDs (stable across re-renders)
       const initialBlocks = Scanner.findQuestionBlocks();
       const testIds = initialBlocks.map(b => b.getAttribute('data-test-id')).filter(id => id);
       if (!testIds.length) { toast('No questions found', 'warn'); return; }
@@ -188,19 +234,12 @@ TAF.Filler = (function() {
       const actualEnd = Math.min(end, testIds.length);
       const rangeTotal = actualEnd - start + 1;
       if (rangeTotal <= 0) { toast('Invalid fill range', 'error'); return; }
-      log(`Processing ${rangeTotal} questions (${start}-${actualEnd})`, 'info');
 
       for (let i = start - 1; i < actualEnd; i++) {
         if (signal.aborted) break;
-        
-        // Re-query the block by its stable data-test-id
         const testId = testIds[i];
         const block = document.querySelector(`[data-test-id="${testId}"]`);
-        if (!block) {
-          log(`Question ${i+1} not found in DOM (maybe removed)`, 'warn');
-          totalFailed++;
-          continue;
-        }
+        if (!block) { totalFailed++; continue; }
 
         const ans = findAnswer(answersMap, block, i);
         if (!ans?.length) { totalFailed++; continue; }
@@ -213,10 +252,7 @@ TAF.Filler = (function() {
         if (success) totalSuccessful++; else totalFailed++;
       }
 
-      if (!signal.aborted) {
-        log(`✅ ${totalSuccessful} filled, ${totalFailed} failed`, totalSuccessful?'ok':'warn');
-        setStatus(`${totalSuccessful} DONE`, true);
-      } else toast('Stopped', 'info');
+      if (!signal.aborted) log(`✅ ${totalSuccessful} filled, ${totalFailed} failed`, totalSuccessful?'ok':'warn');
     } finally {
       abortController = null; isRunning = false; TAF.__setFilling(false);
       if (btn) { btn.textContent = '▶ Fill now'; btn.classList.remove('stop'); }

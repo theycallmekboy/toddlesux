@@ -56,7 +56,8 @@ TAF.UI = (function() {
       case 'paste':
         navigator.clipboard.readText().then(text => {
           bulkText.value = text;
-          toast('Pasted from clipboard', 'success');
+          parseBulkImport(bulkText, entries);
+          toast('Pasted and parsed', 'success');
         }).catch(() => toast('Failed to read clipboard', 'error'));
         break;
       case 'copyPrompt':
@@ -707,8 +708,10 @@ TAF.UI = (function() {
     });
 
     // Initialize answer rows
-    Object.entries(PRESET_ANSWERS).forEach(([k, v]) => addAnswerRow(entries, k, v));
-    if (!Object.keys(PRESET_ANSWERS).length && entries.children.length === 0) {
+    const hasPresets = Object.keys(PRESET_ANSWERS).length > 0;
+    if (hasPresets) {
+      Object.entries(PRESET_ANSWERS).forEach(([k, v]) => addAnswerRow(entries, k, v));
+    } else if (entries.children.length === 0) {
       addAnswerRow(entries);
     }
     // Event listeners
@@ -809,5 +812,12 @@ TAF.UI = (function() {
     if (prog) prog.style.width = '0%';
   }
 
-  return { buildSidebar, addAnswerRow, getAnswersFromUI, resetForNavigation };
+  function clearParseDebounce() {
+    if (parseDebounceTimer) {
+      clearTimeout(parseDebounceTimer);
+      parseDebounceTimer = null;
+    }
+  }
+
+  return { buildSidebar, addAnswerRow, getAnswersFromUI, resetForNavigation, clearParseDebounce };
 })();
