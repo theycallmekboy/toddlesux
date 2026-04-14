@@ -37,7 +37,7 @@
       const isDoubleTap = (now - lastHotkeyTime) < DOUBLE_TAP_MS;
       lastHotkeyTime = now;
 
-      // Double-tap only resets position if panel is currently visible
+      // Double‑tap only resets position if panel is currently visible
       if (isDoubleTap && root.classList.contains('taf-visible') && !root.classList.contains('taf-emergency-hidden')) {
         // Reset saved position to default centered
         Settings.set('panelX', null);

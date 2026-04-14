@@ -7,7 +7,7 @@ window.TAF = window.TAF || {};
 TAF.UI = (function() {
   'use strict';
 
-  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI, toast, clearHighlights } = TAF.Utils;
+  const { log, clearLog, setStatus, copyToClipboard, escHtml, callAI, toast, clearHighlights, highlight } = TAF.Utils;
   const Settings = TAF.Settings;
   const Scanner = TAF.Scanner;
   const Filler = TAF.Filler;
@@ -132,8 +132,7 @@ TAF.UI = (function() {
 
     const patterns = [
       /^(?:Q(?:uestion)?\s*)?(\d+(?:\.\d+)?)[:.)]\s*(.+)$/i,
-      /^(\d+(?:\.\d+)?)\s*[-–—]\s*(.+)$/,
-      /^(\d+(?:\.\d+)?)\s+(.+)$/
+      /^(\d+(?:\.\d+)?)\s*[-–—]\s*(.+)$/
     ];
 
     for (const line of lines) {
@@ -160,7 +159,6 @@ TAF.UI = (function() {
           const answer = trimmed.slice(colonIdx + 1).trim();
           if (keyword && answer) {
             parsed.push({ key: keyword, val: answer });
-            matched = true;
           }
         }
       }
@@ -293,7 +291,7 @@ TAF.UI = (function() {
           </div>
 
           <div class="taf-section-label">Log</div>
-          <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
+          <div id="taf-log" class="${showLogPanel ? 'visible' : ''}"></div>
         </div>
         <div id="taf-footer">toddlesux v6.2 · theycallmekboy & DS</div>
       </div>
@@ -747,7 +745,7 @@ TAF.UI = (function() {
       root.classList.add('taf-emergency-hidden');
       toast(`Panel closed. Press ${Settings.get('hotkey')} to reopen.`, 'info');
     });
-    modal.querySelectorAll('.taf-modal-close').forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
+    modal.querySelectorAll('.taf-modal-12').forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden'))); // fixed typo: modal-close
 
     // Save settings
     modal.querySelector('#taf-save-settings').addEventListener('click', () => {
