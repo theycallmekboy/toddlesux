@@ -80,7 +80,7 @@ TAF.Utils = (function() {
     const lines = sseBuffer.split('\n');
     sseBuffer = lines.pop(); // Keep partial line
 
-    let fullText = '';
+    let chunkText = '';
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed || trimmed === 'data: [DONE]') continue;
@@ -97,12 +97,11 @@ TAF.Utils = (function() {
           chunk = p.candidates?.[0]?.content?.parts?.[0]?.text || p.content?.parts?.[0]?.text || '';
         }
         if (chunk) {
-          fullText += chunk;
-          if (onChunk) onChunk(chunk, fullText);
+          chunkText += chunk;
         }
       } catch (e) {}
     }
-    return fullText;
+    return chunkText;
   }
 
   async function callAI(prompt, onChunk) {
@@ -133,14 +132,17 @@ TAF.Utils = (function() {
           if (!onChunk || !response.responseText) return;
           const newPart = response.responseText.slice(lastIndex);
           lastIndex = response.responseText.length;
-          totalCaptured += parseSSE(newPart, onChunk, cfg.format);
+          const chunkText = parseSSE(newPart, onChunk, cfg.format);
+          totalCaptured += chunkText;
+          if (chunkText) onChunk(chunkText, totalCaptured);
         },
         onload: (response) => {
           if (response.status >= 200 && response.status < 300) {
-            if (lastIndex < response.responseText.length) {
-              totalCaptured += parseSSE(response.responseText.slice(lastIndex), null, cfg.format);
+            const finalPart = response.responseText.slice(lastIndex);
+            if (finalPart) {
+              totalCaptured += parseSSE(finalPart, null, cfg.format);
             }
-            resolve(totalCaptured || parseSSE(response.responseText, null, cfg.format));
+            resolve(totalCaptured);
           } else {
             let errorMsg = 'API error';
             try { const e = JSON.parse(response.responseText); errorMsg = e.error?.message || errorMsg; } catch {}
