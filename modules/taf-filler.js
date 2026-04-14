@@ -1,5 +1,5 @@
 // modules/taf-filler.js
-// toddlesux - Fill logic with stable block iteration, mixed-content support, and strict matching
+// toddlesux - Fill logic with scoped dropdown, safe contenteditable, loose matching
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -29,26 +29,12 @@ TAF.Filler = (function() {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  // --- Strict matching (word boundary regex) ---
-  function matchesAnswer(questionText, answerText) {
-    if (!questionText || !answerText) return false;
-    const q = questionText.trim().toLowerCase();
-    const a = answerText.trim().toLowerCase();
-    if (q === a) return true;
-    
-    // Strict boundary check (Fixes single-char match errors)
-    const escapedA = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(?:^|\\s|[:.)])${escapedA}(?:$|\\s|[:.)])`, 'i');
-    return regex.test(q);
-  }
-
   function waitForDropdownItems(block, timeout = 1000) {
     return new Promise((resolve) => {
       const start = Date.now();
       const check = () => {
-        const localItems = block.querySelectorAll('[role="option"], [role="listitem"]');
-        const globalItems = document.querySelectorAll('body > [role="listbox"] [role="option"], body > div [role="option"]');
-        if (localItems.length > 0 || globalItems.length > 0) resolve(true);
+        const items = block.querySelectorAll('[role="option"], [role="listitem"]');
+        if (items.length > 0) resolve(true);
         else if (Date.now() - start > timeout) resolve(false);
         else requestAnimationFrame(check);
       };
@@ -57,159 +43,114 @@ TAF.Filler = (function() {
   }
 
   async function fillBlock(block, answerArray, label, retries = 2) {
-    if (!answerArray?.length || !block) return false;
-    let anyFilled = false;
     const firstAns = answerArray[0]?.trim() || '';
+    const firstAnsLo = firstAns.toLowerCase();
 
-    // 1. Multiple Choice
+    // 1. Multiple‑choice (loose matching)
     const optsContainer = block.querySelector(Scanner.OPTIONS_CONTAINER_SELECTOR);
     if (optsContainer) {
       const items = optsContainer.querySelectorAll(Scanner.OPTION_ITEM_SELECTOR);
       for (const item of items) {
-        if (matchesAnswer(item.textContent, firstAns)) {
+        const txt = item.textContent.trim().toLowerCase();
+        if (txt.includes(firstAnsLo) || firstAnsLo.includes(txt)) {
           scrollToElement(item);
           const input = item.querySelector('input[type="radio"], input[type="checkbox"]');
           if (input) { if (!input.checked) { input.click(); input.dispatchEvent(new Event('change', {bubbles:true})); } }
           else item.click();
           highlight(item);
-          log(`Choice → "${firstAns}"`, 'ok');
-          anyFilled = true;
-          break;
+          log(`MC → "${firstAns}"`, 'ok');
+          await questionDelay();
+          return true;
         }
       }
     }
 
-    // 2. Radio/checkbox (Standalone)
-    if (!anyFilled) {
-      for (const r of block.querySelectorAll('input[type="radio"], input[type="checkbox"]')) {
-        const lbl = r.labels?.[0] || r.closest('label') || r.parentElement;
-        if (matchesAnswer(lbl?.textContent || r.value || '', firstAns)) {
-          scrollToElement(r);
-          if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); }
-          highlight(lbl || r);
-          log(`Select → "${firstAns}"`, 'ok');
-          anyFilled = true;
-          break;
-        }
+    // 2. Generic radio/checkbox (loose matching)
+    for (const r of block.querySelectorAll('input[type="radio"], input[type="checkbox"]')) {
+      const labelEl = r.labels?.[0] || r.closest('label') || r.parentElement;
+      const lTxt = (labelEl?.textContent || r.value || '').trim().toLowerCase();
+      if (lTxt.includes(firstAnsLo) || firstAnsLo.includes(lTxt)) {
+        scrollToElement(r);
+        if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); }
+        highlight(labelEl || r);
+        log(`Radio → "${firstAns}"`, 'ok');
+        await questionDelay();
+        return true;
       }
     }
 
-    // 3. Dropdown (supports Portals)
-    if (!anyFilled) {
-      const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
-      if (drop) {
-        drop.click();
-        const opened = await waitForDropdownItems(block);
-        if (opened) {
-          const items = [...block.querySelectorAll('[role="option"], [role="listitem"]'), ...document.querySelectorAll('body > [role="listbox"] [role="option"], body > div [role="option"]')];
-          const match = items.find(i => {
-            const text = i.querySelector('[class*="Option__text"], span, div')?.textContent || i.textContent;
-            return matchesAnswer(text, firstAns);
-          });
-          if (match) {
-            scrollToElement(match);
-            match.click();
-            highlight(match);
-            log(`Pick → "${firstAns}"`, 'ok');
-            anyFilled = true;
-          }
-        } else if (retries > 0) {
-          await sleep(200);
-          return fillBlock(block, answerArray, label, retries - 1);
+    // 3. Dropdown (scoped, event-driven)
+    const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
+    if (drop) {
+      drop.click();
+      const opened = await waitForDropdownItems(block);
+      if (!opened) {
+        if (retries > 0) return fillBlock(block, answerArray, label, retries - 1);
+        log(`Dropdown failed to open for "${firstAns}"`, 'warn');
+        return false;
+      }
+      const items = block.querySelectorAll('[role="option"], [role="listitem"]');
+      for (const item of items) {
+        const txt = item.textContent.trim().toLowerCase();
+        if (txt.includes(firstAnsLo) || firstAnsLo.includes(txt)) {
+          scrollToElement(item);
+          item.click();
+          highlight(item);
+          log(`Dropdown → "${firstAns}"`, 'ok');
+          await questionDelay();
+          return true;
         }
       }
+      log(`Dropdown item not found for "${firstAns}"`, 'warn');
+      return false;
     }
 
-    // 4. Text Inputs (Mixed content: Always attempt to fill text boxes)
+    // 4. Text inputs (safe contenteditable)
     const textEls = [...block.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea, [contenteditable="true"]')];
     if (textEls.length) {
       scrollToElement(block);
-      let filledCount = 0;
-      // If we filled a choice above, the text answer is likely the SECOND element in answerArray
-      const textStartIndex = anyFilled ? 1 : 0;
-      
-      for (let i = 0; i < textEls.length; i++) {
-        const ansIndex = textStartIndex + i;
-        const ans = answerArray[ansIndex];
-        if (!ans) continue;
-        
-        const inp = textEls[i];
+      let filled = 0;
+      for (let i = 0; i < textEls.length && i < answerArray.length; i++) {
+        const inp = textEls[i], ans = answerArray[i]; if (!ans) continue;
         inp.focus();
-        const useHuman = Settings.get('enableCharTyping');
-        const useMistakes = Settings.get('enableHumanTyping');
-
-        if (useHuman) {
-          let currentStr = '';
-          for (let c = 0; c < ans.length; c++) {
-            if (useMistakes && Math.random() < Settings.get('humanTypingChance') && c > 0 && c < ans.length - 1) {
-              const wrongChar = String.fromCharCode(97 + Math.floor(Math.random() * 26));
-              await setAndDispatch(inp, currentStr + wrongChar);
-              await sleep(Settings.get('charTypingDelay') * 1.5);
-              await setAndDispatch(inp, currentStr);
-              await sleep(Settings.get('charTypingDelay'));
-            }
-            currentStr += ans[c];
-            await setAndDispatch(inp, currentStr);
-            await sleep(Settings.get('charTypingDelay') + (Math.random() * 20));
-          }
+        if (inp.contentEditable === 'true') {
+          inp.textContent = ans;
+          inp.dispatchEvent(new Event('input', {bubbles:true}));
         } else {
-          await setAndDispatch(inp, ans);
+          setNativeValue(inp, ans);
+          inp.dispatchEvent(new Event('input', {bubbles:true}));
+          inp.dispatchEvent(new Event('change', {bubbles:true}));
+          inp.blur();
         }
-        inp.blur();
         highlight(inp);
-        filledCount++;
+        filled++;
+        await humanDelay();
       }
-      if (filledCount) {
-        log(`Text → ${filledCount} input(s)`, 'ok');
-        anyFilled = true;
-      }
+      if (filled) { log(`Text → ${filled} blanks`, 'ok'); return true; }
     }
 
-    if (anyFilled) await questionDelay();
-    return anyFilled;
-  }
-
-  async function setAndDispatch(el, val) {
-    if (el.contentEditable === 'true') { el.textContent = val; }
-    else { setNativeValue(el, val); }
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+    log(`No match for "${firstAns}"`, 'warn');
+    return false;
   }
 
   function findAnswer(answers, block, index) {
+    const key = `q${index+1}`; if (answers[key]) return answers[key];
     const label = Scanner.getQuestionLabel(block).toLowerCase();
-    
-    // 1. Try numeric match (Toddle usually labels as 1.1 or 9)
-    const numMatch = label.match(/^(\d+(\.\d+)?)/);
-    if (numMatch) {
-      const qKey = "q" + numMatch[1];
-      if (answers[qKey]) return answers[qKey];
-    }
-
-    // 2. Direct Index match (q1, q2...)
-    const key = `q${index+1}`;
-    if (answers[key]) return answers[key];
-    
-    // 3. Word boundary phrase matching
+    const subMatch = label.match(/^q(\d+(?:\.\d+)?)/i);
+    if (subMatch) { const subKey = `q${subMatch[1].toLowerCase()}`; if (answers[subKey]) return answers[subKey]; }
     for (const [k, v] of Object.entries(answers)) {
       if (/^q\d+(\.\d+)?$/.test(k)) continue;
-      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`\\b${escapedK}\\b`, 'i');
-      if (regex.test(label)) return v;
+      if (label.includes(k) || k.split(' ').every(w => label.includes(w))) return v;
     }
-    
     return null;
   }
 
   async function runFill(answersMap, rangeStart = null, rangeEnd = null) {
     if (TAF.__isFilling && TAF.__isFilling()) { toast('Fill already running', 'warn'); return; }
-    if (TAF.UI && TAF.UI.clearParseDebounce) TAF.UI.clearParseDebounce();
-    
     if (abortController) abortController.abort();
     abortController = new AbortController(); const signal = abortController.signal;
     TAF.__setFilling(true); isRunning = true;
 
-    Scanner.invalidateCache();
     let start = rangeStart ?? Settings.get('fillRangeStart');
     let end = rangeEnd ?? Settings.get('fillRangeEnd');
     start = Math.max(1, parseInt(start) || 1);
@@ -222,22 +163,25 @@ TAF.Filler = (function() {
     const prog = document.getElementById('taf-progress-bar'), progTxt = document.getElementById('taf-progress-text');
 
     try {
-      const blocks = Scanner.findQuestionBlocks();
-      if (!blocks.length) { toast('No questions found', 'warn'); return; }
+      const initialBlocks = Scanner.findQuestionBlocks();
+      const questionRefs = initialBlocks.map((b, idx) => ({
+        index: idx,
+        testId: b.getAttribute('data-test-id'),
+        label: Scanner.getQuestionLabel(b).slice(0, 40)
+      })).filter(ref => ref.testId);
 
-      const actualEnd = Math.min(end, blocks.length);
+      if (!questionRefs.length) { toast('No questions found', 'warn'); return; }
+
+      const actualEnd = Math.min(end, questionRefs.length);
       const rangeTotal = actualEnd - start + 1;
       if (rangeTotal <= 0) { toast('Invalid fill range', 'error'); return; }
+      log(`Processing ${rangeTotal} questions (${start}-${actualEnd})`, 'info');
 
       for (let i = start - 1; i < actualEnd; i++) {
         if (signal.aborted) break;
-        
-        // --- STABLE BLOCK REFERENCE (Fixes last-question-only bug) ---
-        const block = blocks[i];
-        if (!block || !block.isConnected) {
-          log(`Question ${i+1} vanished`, 'warn');
-          totalFailed++; continue;
-        }
+        const ref = questionRefs[i];
+        const block = document.querySelector(`[data-test-id="${ref.testId}"]`);
+        if (!block) { log(`Q${i+1} not found in DOM`, 'warn'); totalFailed++; continue; }
 
         const ans = findAnswer(answersMap, block, i);
         if (!ans?.length) { totalFailed++; continue; }
@@ -250,7 +194,10 @@ TAF.Filler = (function() {
         if (success) totalSuccessful++; else totalFailed++;
       }
 
-      if (!signal.aborted) log(`✅ ${totalSuccessful} filled, ${totalFailed} failed`, totalSuccessful?'ok':'warn');
+      if (!signal.aborted) {
+        log(`✅ ${totalSuccessful} filled, ${totalFailed} failed`, totalSuccessful?'ok':'warn');
+        setStatus(`${totalSuccessful} DONE`, true);
+      } else toast('Stopped', 'info');
     } finally {
       abortController = null; isRunning = false; TAF.__setFilling(false);
       if (btn) { btn.textContent = '▶ Fill now'; btn.classList.remove('stop'); }
@@ -260,7 +207,7 @@ TAF.Filler = (function() {
   }
 
   function stopFill() { if (abortController) abortController.abort(); }
-  function isRunning() { return isRunning; }
+  function isFilling() { return isRunning; }
 
-  return { runFill, stopFill, isRunning };
+  return { runFill, stopFill, isFilling };
 })();
