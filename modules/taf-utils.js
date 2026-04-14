@@ -73,21 +73,19 @@ TAF.Utils = (function() {
     catch { showToast('Clipboard failed', 'error'); return false; }
   };
 
-  // --- SSE Parsing with line buffering ---
+  // --- SSE Parsing with Buffer (Fixes duplication and fragmentation) ---
   let sseBuffer = '';
-  function parseSSEIncremental(text, onChunk, format) {
-    sseBuffer += text;
-    let full = '';
+  function parseSSE(textPart, onChunk, format) {
+    sseBuffer += textPart;
     const lines = sseBuffer.split('\n');
-    sseBuffer = lines.pop(); // Keep partial line in buffer
+    sseBuffer = lines.pop(); // Keep partial line
 
+    let fullText = '';
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed) continue;
+      if (!trimmed || trimmed === 'data: [DONE]') continue;
       
       const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
-      if (dataStr === '[DONE]') continue;
-
       try {
         const p = JSON.parse(dataStr);
         let chunk = '';
@@ -99,12 +97,12 @@ TAF.Utils = (function() {
           chunk = p.candidates?.[0]?.content?.parts?.[0]?.text || p.content?.parts?.[0]?.text || '';
         }
         if (chunk) {
-          full += chunk;
-          if (onChunk) onChunk(chunk, full);
+          fullText += chunk;
+          if (onChunk) onChunk(chunk, fullText);
         }
       } catch (e) {}
     }
-    return full;
+    return fullText;
   }
 
   async function callAI(prompt, onChunk) {
@@ -120,45 +118,36 @@ TAF.Utils = (function() {
     };
     
     const cfg = configs[provider];
-    if (!cfg) { showToast(`Unknown provider: ${provider}`, 'error'); return null; }
-    if (!cfg.key) { showToast(`${provider} API key not set`, 'error'); return null; }
+    if (!cfg || !cfg.key) { showToast(`${provider} API key not set`, 'error'); return null; }
 
     return new Promise((resolve) => {
       const url = typeof cfg.url === 'function' ? cfg.url() : cfg.url;
       const body = JSON.stringify(cfg.body(model));
       let lastIndex = 0;
-      let totalText = '';
-      sseBuffer = ''; // Reset buffer for new call
-      
+      let totalCaptured = '';
+      sseBuffer = ''; 
+
       GM_xmlhttpRequest({
-        method: 'POST',
-        url: url,
-        headers: cfg.headers(cfg.key),
-        data: body,
+        method: 'POST', url: url, headers: cfg.headers(cfg.key), data: body,
         onprogress: (response) => {
           if (!onChunk || !response.responseText) return;
           const newPart = response.responseText.slice(lastIndex);
           lastIndex = response.responseText.length;
-          totalText += parseSSEIncremental(newPart, onChunk, cfg.format);
+          totalCaptured += parseSSE(newPart, onChunk, cfg.format);
         },
         onload: (response) => {
           if (response.status >= 200 && response.status < 300) {
             if (lastIndex < response.responseText.length) {
-              const remaining = response.responseText.slice(lastIndex);
-              totalText += parseSSEIncremental(remaining, onChunk, cfg.format);
+              totalCaptured += parseSSE(response.responseText.slice(lastIndex), null, cfg.format);
             }
-            resolve(totalText);
+            resolve(totalCaptured || parseSSE(response.responseText, null, cfg.format));
           } else {
             let errorMsg = 'API error';
             try { const e = JSON.parse(response.responseText); errorMsg = e.error?.message || errorMsg; } catch {}
-            showToast(`AI error: ${errorMsg}`, 'error');
-            resolve(null);
+            showToast(`AI error: ${errorMsg}`, 'error'); resolve(null);
           }
         },
-        onerror: (err) => {
-          showToast(`AI request failed: ${err.statusText || 'Network Error'}`, 'error');
-          resolve(null);
-        }
+        onerror: () => { showToast('AI request failed (CORS/Network)', 'error'); resolve(null); }
       });
     });
   }

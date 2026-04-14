@@ -1,5 +1,5 @@
 // modules/taf-scanner.js
-// toddlesux - Question detection with caching and observer invalidation
+// toddlesux - Question detection with stable ID tracking and order
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -7,8 +7,11 @@ window.TAF = window.TAF || {};
 TAF.Scanner = (function() {
   'use strict';
 
-  const QUESTION_SELECTOR = '[data-test-id*="worksheet-question-questionCard"]';
-  const QUESTION_TEXT_SELECTOR = '[class*="Header__studentViewContainer"]';
+  // --- Primary Selector (Attribute-based is more stable than dynamic classes) ---
+  const QUESTION_SELECTOR = '[data-test-id^="worksheet-question-questionCard-"]';
+  const INDEX_SELECTOR = '[class*="Header__index"]';
+  const TEXT_SELECTOR = '[class*="Textview__richText"]';
+  
   const OPTIONS_CONTAINER_SELECTOR = '[class*="MultiChoiceCheckList__container"]';
   const OPTION_ITEM_SELECTOR = '[class*="OptionsList__itemContainer"]';
 
@@ -20,31 +23,49 @@ TAF.Scanner = (function() {
   function findQuestionBlocks() {
     if (cacheValid && cachedBlocks) return cachedBlocks;
     cacheValid = true;
+
     const cards = document.querySelectorAll(QUESTION_SELECTOR);
-    cachedBlocks = [...cards].filter(el => 
-      el.querySelector('input, select, textarea, [role="radio"], [role="checkbox"], [contenteditable="true"], ' + OPTIONS_CONTAINER_SELECTOR)
-    );
+    const seenIds = new Set();
+    const unique = [];
+
+    // Deduplicate by the unique data-test-id string, not DOM reference
+    cards.forEach(card => {
+      const id = card.getAttribute('data-test-id');
+      if (id && !seenIds.has(id)) {
+        seenIds.add(id);
+        unique.push(card);
+      }
+    });
+
+    // Ensure logical order based on the trailing question index in the ID
+    cachedBlocks = unique.sort((a, b) => {
+      const idxA = parseInt(a.getAttribute('data-test-id').split('-').pop()) || 0;
+      const idxB = parseInt(b.getAttribute('data-test-id').split('-').pop()) || 0;
+      return idxA - idxB;
+    });
+
     return cachedBlocks;
   }
 
   function getQuestionLabel(block) {
-    const header = block.querySelector(QUESTION_TEXT_SELECTOR);
-    if (header) {
-      const idx = header.querySelector('[class*="Header__index"]');
-      const txt = header.querySelector('[class*="Header__minWidth0"]');
-      if (idx && txt) return `${idx.textContent.trim()} ${txt.textContent.trim()}`;
-      return header.textContent.trim();
-    }
-    return block.textContent.replace(/\s+/g, ' ').trim().slice(0, 80);
+    const indexEl = block.querySelector(INDEX_SELECTOR);
+    const textEl = block.querySelector(TEXT_SELECTOR);
+    
+    const index = indexEl ? indexEl.textContent.trim() : ""; 
+    const text = textEl ? textEl.textContent.trim() : "";
+    
+    if (!index && !text) return block.textContent.slice(0, 100).replace(/\s+/g, ' ').trim();
+    return `${index} ${text}`.trim();
   }
 
   function scanPage() {
     TAF.Utils.clearLog();
+    invalidateCache();
     const blocks = findQuestionBlocks();
     if (!blocks.length) {
       TAF.Utils.log('No questions found', 'warn');
       TAF.Utils.setStatus('NONE', false);
-      return blocks;
+      return [];
     }
     TAF.Utils.log(`Found ${blocks.length} questions`, 'info');
     blocks.forEach((b, i) => TAF.Utils.log(`q${i+1}: ${getQuestionLabel(b).slice(0,60)}`, 'info'));
@@ -58,7 +79,8 @@ TAF.Scanner = (function() {
     const lines = [];
     blocks.forEach((b, i) => {
       const label = getQuestionLabel(b);
-      const m = label.match(/^(Q\d+(?:\.\d+)?)/i);
+      // Format as Q1: Question Text
+      const m = label.match(/^(Q\d+)/i);
       lines.push(m ? `${m[1]}: ${label.slice(m[1].length).replace(/^[:.\s]+/, '').trim()}` : `Q${i+1}: ${label}`);
     });
     await TAF.Utils.copyToClipboard(lines.join('\n'));
@@ -66,7 +88,7 @@ TAF.Scanner = (function() {
   }
 
   return {
-    QUESTION_SELECTOR, QUESTION_TEXT_SELECTOR, OPTIONS_CONTAINER_SELECTOR, OPTION_ITEM_SELECTOR,
+    QUESTION_SELECTOR, OPTIONS_CONTAINER_SELECTOR, OPTION_ITEM_SELECTOR,
     findQuestionBlocks, getQuestionLabel, scanPage, copyAllQuestions, invalidateCache
   };
 })();

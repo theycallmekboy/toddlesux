@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      6.5
+// @version      6.6
 // @description  Optimized Toddle autofill with AI, human simulation, and advanced features
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
@@ -22,9 +22,8 @@
 (function() {
   'use strict';
 
-  // --- Execution mutex ---
-  let isFilling = false;
   window.TAF = window.TAF || {};
+  let isFilling = false;
   TAF.__isFilling = () => isFilling;
   TAF.__setFilling = (v) => { isFilling = v; };
 
@@ -33,15 +32,15 @@
 
   document.addEventListener('keydown', (e) => {
     if (!window.TAF || !TAF.Settings) return;
-    
+
     const hotkey = TAF.Settings.get('hotkey') || 'Delete';
-    const isMainHotkey = e.key === hotkey;
-    const isScanHotkey = e.ctrlKey && e.shiftKey && e.key === 'F';
-    const isFillHotkey = e.ctrlKey && e.key === 'Enter';
+    const isMain = e.key === hotkey;
+    const isScan = e.ctrlKey && e.shiftKey && e.key === 'F';
+    const isFill = e.ctrlKey && e.key === 'Enter';
 
-    if (!isMainHotkey && !isScanHotkey && !isFillHotkey) return;
+    if (!isMain && !isScan && !isFill) return;
 
-    // --- Hotkey safety (only check if it's one of our keys) ---
+    // --- Scoped Hotkey Safety ---
     const active = document.activeElement;
     const isTyping = active && (
       active.tagName === 'INPUT' || 
@@ -53,15 +52,14 @@
 
     const root = document.getElementById('taf-root');
     if (!root) return;
-    
-    if (isMainHotkey) {
+
+    if (isMain) {
       e.preventDefault();
       const now = Date.now();
       const isDoubleTap = (now - lastHotkeyTime) < DOUBLE_TAP_MS;
       lastHotkeyTime = now;
 
       if (isDoubleTap) {
-        // Reset position regardless of current visibility
         TAF.Settings.set('panelX', null);
         TAF.Settings.set('panelY', null);
         TAF.Settings.set('panelWidth', 360);
@@ -72,22 +70,22 @@
         return;
       }
 
-      // Normal toggle
       const currentState = root.dataset.state;
-      const newState = currentState === 'EMERGENCY_LOCK' ? 'VISIBLE' : 'EMERGENCY_LOCK';
+      const newState = (currentState === 'EMERGENCY_LOCK') ? 'VISIBLE' : 'EMERGENCY_LOCK';
       root.dataset.state = newState;
       if (TAF.Utils) TAF.Utils.toast(`Panel ${newState === 'EMERGENCY_LOCK' ? 'hidden' : 'shown'}`, 'info');
     }
 
-    if (isScanHotkey) {
+    if (isScan) {
       e.preventDefault();
       if (TAF.Scanner) TAF.Scanner.scanPage();
     }
-    if (isFillHotkey) {
-      if (root.dataset.state === 'VISIBLE') {
+
+    if (isFill) {
+      if (root.dataset.state === 'VISIBLE' && !isFilling) {
         e.preventDefault();
         const btn = document.getElementById('taf-btn-run');
-        if (btn && !isFilling) btn.click();
+        if (btn) btn.click();
       }
     }
   });
@@ -100,33 +98,24 @@
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         if (TAF.Scanner) TAF.Scanner.invalidateCache();
-      }, 100);
+      }, 150);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  // --- SPA navigation detection ---
+  // --- Navigation Reset ---
   const originalPush = history.pushState;
   const originalReplace = history.replaceState;
-  history.pushState = function(...args) {
-    originalPush.apply(this, args);
-    handleNavigation();
-  };
-  history.replaceState = function(...args) {
-    originalReplace.apply(this, args);
-    handleNavigation();
-  };
+  history.pushState = function(...args) { originalPush.apply(this, args); handleNavigation(); };
+  history.replaceState = function(...args) { originalReplace.apply(this, args); handleNavigation(); };
   window.addEventListener('popstate', handleNavigation);
   function handleNavigation() {
     if (TAF.Scanner) TAF.Scanner.invalidateCache();
-    if (TAF.UI && typeof TAF.UI.resetForNavigation === 'function') TAF.UI.resetForNavigation();
+    if (TAF.UI && TAF.UI.resetForNavigation) TAF.UI.resetForNavigation();
   }
 
   function init() {
-    if (typeof window.TAF === 'undefined' || !TAF.UI) {
-      console.error('[toddlesux] Modules not loaded.');
-      return;
-    }
+    if (typeof window.TAF === 'undefined' || !TAF.UI) return;
     initObserver();
     TAF.UI.buildSidebar();
   }

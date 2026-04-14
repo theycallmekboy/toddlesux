@@ -1,5 +1,5 @@
 // modules/taf-filler.js
-// toddlesux - Fill logic with stable DOM iteration and strict matching
+// toddlesux - Fill logic with stable block iteration, mixed-content support, and strict matching
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -29,16 +29,14 @@ TAF.Filler = (function() {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  // --- Strict matching (exact or strict word boundary) ---
+  // --- Strict matching (word boundary regex) ---
   function matchesAnswer(questionText, answerText) {
     if (!questionText || !answerText) return false;
     const q = questionText.trim().toLowerCase();
     const a = answerText.trim().toLowerCase();
-    
-    // Exact match is always preferred
     if (q === a) return true;
     
-    // Strict word boundary check: answer must exist as a standalone phrase in the question text
+    // Strict boundary check (Fixes single-char match errors)
     const escapedA = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(?:^|\\s|[:.)])${escapedA}(?:$|\\s|[:.)])`, 'i');
     return regex.test(q);
@@ -59,11 +57,11 @@ TAF.Filler = (function() {
   }
 
   async function fillBlock(block, answerArray, label, retries = 2) {
-    if (!answerArray?.length) return false;
+    if (!answerArray?.length || !block) return false;
     let anyFilled = false;
     const firstAns = answerArray[0]?.trim() || '';
 
-    // 1. Multiple choice
+    // 1. Multiple Choice
     const optsContainer = block.querySelector(Scanner.OPTIONS_CONTAINER_SELECTOR);
     if (optsContainer) {
       const items = optsContainer.querySelectorAll(Scanner.OPTION_ITEM_SELECTOR);
@@ -74,14 +72,14 @@ TAF.Filler = (function() {
           if (input) { if (!input.checked) { input.click(); input.dispatchEvent(new Event('change', {bubbles:true})); } }
           else item.click();
           highlight(item);
-          log(`MC → "${firstAns}"`, 'ok');
+          log(`Choice → "${firstAns}"`, 'ok');
           anyFilled = true;
           break;
         }
       }
     }
 
-    // 2. Radio/checkbox (if not already filled by MC)
+    // 2. Radio/checkbox (Standalone)
     if (!anyFilled) {
       for (const r of block.querySelectorAll('input[type="radio"], input[type="checkbox"]')) {
         const lbl = r.labels?.[0] || r.closest('label') || r.parentElement;
@@ -89,14 +87,14 @@ TAF.Filler = (function() {
           scrollToElement(r);
           if (!r.checked) { r.click(); r.dispatchEvent(new Event('change', {bubbles:true})); }
           highlight(lbl || r);
-          log(`Radio → "${firstAns}"`, 'ok');
+          log(`Select → "${firstAns}"`, 'ok');
           anyFilled = true;
           break;
         }
       }
     }
 
-    // 3. Dropdown
+    // 3. Dropdown (supports Portals)
     if (!anyFilled) {
       const drop = block.querySelector('[class*="dropdown"], [aria-haspopup="listbox"]');
       if (drop) {
@@ -112,7 +110,7 @@ TAF.Filler = (function() {
             scrollToElement(match);
             match.click();
             highlight(match);
-            log(`Dropdown → "${firstAns}"`, 'ok');
+            log(`Pick → "${firstAns}"`, 'ok');
             anyFilled = true;
           }
         } else if (retries > 0) {
@@ -122,11 +120,12 @@ TAF.Filler = (function() {
       }
     }
 
-    // 4. Text inputs
+    // 4. Text Inputs (Mixed content: Always attempt to fill text boxes)
     const textEls = [...block.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea, [contenteditable="true"]')];
     if (textEls.length) {
       scrollToElement(block);
       let filledCount = 0;
+      // If we filled a choice above, the text answer is likely the SECOND element in answerArray
       const textStartIndex = anyFilled ? 1 : 0;
       
       for (let i = 0; i < textEls.length; i++) {
@@ -161,7 +160,7 @@ TAF.Filler = (function() {
         filledCount++;
       }
       if (filledCount) {
-        log(`Text → ${filledCount} blanks`, 'ok');
+        log(`Text → ${filledCount} input(s)`, 'ok');
         anyFilled = true;
       }
     }
@@ -180,15 +179,18 @@ TAF.Filler = (function() {
   function findAnswer(answers, block, index) {
     const label = Scanner.getQuestionLabel(block).toLowerCase();
     
+    // 1. Try numeric match (Toddle usually labels as 1.1 or 9)
     const numMatch = label.match(/^(\d+(\.\d+)?)/);
     if (numMatch) {
       const qKey = "q" + numMatch[1];
       if (answers[qKey]) return answers[qKey];
     }
 
+    // 2. Direct Index match (q1, q2...)
     const key = `q${index+1}`;
     if (answers[key]) return answers[key];
     
+    // 3. Word boundary phrase matching
     for (const [k, v] of Object.entries(answers)) {
       if (/^q\d+(\.\d+)?$/.test(k)) continue;
       const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -207,9 +209,7 @@ TAF.Filler = (function() {
     abortController = new AbortController(); const signal = abortController.signal;
     TAF.__setFilling(true); isRunning = true;
 
-    // --- Invalidate cache before running ---
     Scanner.invalidateCache();
-
     let start = rangeStart ?? Settings.get('fillRangeStart');
     let end = rangeEnd ?? Settings.get('fillRangeEnd');
     start = Math.max(1, parseInt(start) || 1);
@@ -222,7 +222,6 @@ TAF.Filler = (function() {
     const prog = document.getElementById('taf-progress-bar'), progTxt = document.getElementById('taf-progress-text');
 
     try {
-      // --- Iterate directly over blocks, do not re-query by data-test-id ---
       const blocks = Scanner.findQuestionBlocks();
       if (!blocks.length) { toast('No questions found', 'warn'); return; }
 
@@ -232,11 +231,12 @@ TAF.Filler = (function() {
 
       for (let i = start - 1; i < actualEnd; i++) {
         if (signal.aborted) break;
+        
+        // --- STABLE BLOCK REFERENCE (Fixes last-question-only bug) ---
         const block = blocks[i];
         if (!block || !block.isConnected) {
-          log(`Question ${i+1} lost (DOM change)`, 'warn');
-          totalFailed++;
-          continue;
+          log(`Question ${i+1} vanished`, 'warn');
+          totalFailed++; continue;
         }
 
         const ans = findAnswer(answersMap, block, i);

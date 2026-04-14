@@ -19,7 +19,7 @@ TAF.Styles = (function() {
       #taf-root { position: fixed; width: 360px; min-width: 280px; min-height: 400px; z-index: 2147483647; overflow: hidden; }
       #taf-root[data-state="VISIBLE"] { visibility: visible; pointer-events: auto; opacity: 1; animation: taf-fade-in 0.3s ease; }
       #taf-root[data-state="HIDDEN"] { visibility: hidden; pointer-events: none; opacity: 0; }
-      #taf-root[data-state="EMERGENCY_LOCK"] { display: none !important; }
+      #taf-root[data-state="EMERGENCY_LOCK"] { visibility: hidden; pointer-events: none; opacity: 0; }
       @keyframes taf-fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
       #taf-panel { background: rgba(0,0,0,0.7); backdrop-filter: blur(var(--taf-blur)) saturate(180%); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; height: 100%; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.03) inset; position: relative; }
