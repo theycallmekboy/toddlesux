@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         toddlesux
+// @name         toddlesuxTest
 // @namespace    http://tampermonkey.net/
 // @version      6.2
 // @description  Optimized Toddle autofill with AI, human simulation, and advanced features
