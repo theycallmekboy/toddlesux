@@ -90,7 +90,7 @@ TAF.Utils = (function() {
   }
 
   async function callAI(prompt, onChunk) {
-    const provider = TAF.Settings.get('aiProvider'), model = TAF.Settings.get(provider + 'Model');
+    const provider = TAF.Settings.get('aiProvider'), model = TAF.Settings.get(provider + 'Model') || (provider === 'github' ? 'gpt-4o' : provider === 'groq' ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini');
     const configs = {
       openai: { url: 'https://api.openai.com/v1/chat/completions', key: TAF.Settings.get('openaiApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }) },
       gemini: { url: () => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${TAF.Settings.get('geminiApiKey')}`, key: TAF.Settings.get('geminiApiKey'), headers: () => ({ 'Content-Type': 'application/json' }), body: () => ({ contents: [{ parts: [{ text: prompt }] }] }), parse: (d) => d.candidates?.[0]?.content?.parts?.[0]?.text || '' },

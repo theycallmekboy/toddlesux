@@ -201,11 +201,28 @@ TAF.Styles = (function() {
 
       /* Settings Modal */
       #taf-settings-modal {
-        position: fixed; z-index: 2147483648; visibility: hidden; opacity: 0;
-        transition: opacity 0.2s ease, visibility 0.2s; pointer-events: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2147483648;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.2s ease, visibility 0.2s;
+        pointer-events: none;
       }
-      #taf-settings-modal:not(.hidden) { visibility: visible; opacity: 1; pointer-events: auto; }
-      #taf-settings-modal.hidden { display: none; }
+      #taf-settings-modal:not(.hidden) {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+      }
+      #taf-settings-modal.hidden {
+        display: none !important;
+      }
       .taf-modal-content {
         background: rgba(20,20,20,0.9); backdrop-filter: blur(30px); border: 0.5px solid rgba(255,255,255,0.08);
         border-radius: 28px; width: 520px; max-width: 90vw; padding: 24px; box-shadow: 0 30px 50px rgba(0,0,0,0.8);

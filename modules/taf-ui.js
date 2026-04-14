@@ -190,7 +190,11 @@ TAF.UI = (function() {
     `;
     row.querySelector('.taf-del').addEventListener('click', () => row.remove());
     container.appendChild(row);
-    requestAnimationFrame(() => row.classList.remove('taf-row-new'));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        row.classList.remove('taf-row-new');
+      });
+    });
   }
 
   function getAnswersFromUI(container) {
@@ -745,7 +749,7 @@ TAF.UI = (function() {
       root.classList.add('taf-emergency-hidden');
       toast(`Panel closed. Press ${Settings.get('hotkey')} to reopen.`, 'info');
     });
-    modal.querySelectorAll('.taf-modal-12').forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden'))); // fixed typo: modal-close
+    modal.querySelectorAll('.taf-modal-close').forEach(btn => btn.addEventListener('click', () => modal.classList.add('hidden')));
 
     // Save settings
     modal.querySelector('#taf-save-settings').addEventListener('click', () => {

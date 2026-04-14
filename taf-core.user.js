@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         toddlesux
 // @namespace    http://tampermonkey.net/
-// @version      6.2
+// @version      0.0.1
 // @description  Optimized Toddle autofill with AI, human simulation, and advanced features
 // @author       theycallmekboy - made with DS
 // @match        https://web.toddleapp.com/*
@@ -40,10 +40,10 @@
       // Double‑tap only resets position if panel is currently visible
       if (isDoubleTap && root.classList.contains('taf-visible') && !root.classList.contains('taf-emergency-hidden')) {
         // Reset saved position to default centered
-        Settings.set('panelX', null);
-        Settings.set('panelY', null);
-        Settings.set('panelWidth', 360);
-        Settings.set('panelHeight', null);
+        TAF.Settings.set('panelX', null);
+        TAF.Settings.set('panelY', null);
+        TAF.Settings.set('panelWidth', 360);
+        TAF.Settings.set('panelHeight', null);
         
         // Reset inline styles to CSS defaults
         root.style.left = '';
@@ -80,10 +80,15 @@
   });
 
   let observer = null;
+  let debounceTimer = null;
+  
   function initObserver() {
     if (observer) observer.disconnect();
     observer = new MutationObserver(() => {
-      if (TAF.Scanner) TAF.Scanner.invalidateCache();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (TAF.Scanner) TAF.Scanner.invalidateCache();
+      }, 100);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
