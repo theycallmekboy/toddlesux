@@ -44,7 +44,7 @@ TAF.Settings = (function() {
   function get(k) { return settings[k] ?? DEFAULTS[k]; }
   function set(k, v) { settings[k] = v; save(); }
   function reset() { settings = {...DEFAULTS}; save(); }
-  function getAll() { return { ...settings }; }
+  function getAll() { return {...settings}; }
 
   const SPEED_PRESETS = {
     turbo:   { enableRandomDelays: false, enableHumanTyping: false, enableCharTyping: false, questionDelay: 0 },

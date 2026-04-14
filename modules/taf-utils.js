@@ -1,5 +1,5 @@
 // modules/taf-utils.js
-// toddlesux - Shared utilities with safe content handling and updated APIs
+// toddlesux - Shared utilities with consolidated streaming
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -10,10 +10,13 @@ TAF.Utils = (function() {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const escHtml = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-  // --- Unified log/toast dispatcher ---
   let toastContainer = null;
   function getToastContainer() {
-    if (!toastContainer) { toastContainer = document.createElement('div'); toastContainer.id = 'taf-toast-container'; document.body.appendChild(toastContainer); }
+    if (!toastContainer) {
+      toastContainer = document.createElement('div');
+      toastContainer.id = 'taf-toast-container';
+      document.body.appendChild(toastContainer);
+    }
     return toastContainer;
   }
 
@@ -22,7 +25,7 @@ TAF.Utils = (function() {
     const toastEl = document.createElement('div');
     toastEl.className = `taf-toast ${type}`;
     const icons = { success: '✅', error: '❌', info: 'ℹ️', warn: '⚠️' };
-    toastEl.textContent = `${icons[type] || 'ℹ️'} ${message}`; // Safe
+    toastEl.innerHTML = `<span>${icons[type] || 'ℹ️'}</span> ${escHtml(message)}`;
     container.appendChild(toastEl);
     requestAnimationFrame(() => requestAnimationFrame(() => toastEl.classList.add('taf-toast-in')));
     const removeToast = () => {
@@ -44,7 +47,7 @@ TAF.Utils = (function() {
     line.className = `taf-log-line taf-${type}`;
     const tagMap = { ok:'DONE', warn:'WARN', err:'FAIL', info:'INFO' };
     line.innerHTML = `<span class="taf-tag">${tagMap[type]||'INFO'}</span><span class="taf-msg"></span>`;
-    line.querySelector('.taf-msg').textContent = msg; // Safe
+    line.querySelector('.taf-msg').textContent = msg;
     el.appendChild(line);
     el.scrollTop = el.scrollHeight;
     if (type === 'ok') showToast(msg, 'success', 2000);
@@ -55,7 +58,7 @@ TAF.Utils = (function() {
   const setStatus = (text, active = true) => {
     const badge = document.getElementById('taf-status-badge');
     if (!badge) return;
-    badge.textContent = text; // Safe
+    badge.textContent = text;
     badge.className = active ? '' : 'inactive';
   };
 
@@ -73,35 +76,23 @@ TAF.Utils = (function() {
     catch { showToast('Clipboard failed', 'error'); return false; }
   };
 
-  // --- SSE Parsing with Buffer (Fixes duplication and fragmentation) ---
-  let sseBuffer = '';
-  function parseSSE(textPart, onChunk, format) {
-    sseBuffer += textPart;
-    const lines = sseBuffer.split('\n');
-    sseBuffer = lines.pop(); // Keep partial line
-
-    let chunkText = '';
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed === 'data: [DONE]') continue;
-      
-      const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
-      try {
-        const p = JSON.parse(dataStr);
-        let chunk = '';
-        if (format === 'openai') {
-          chunk = p.choices?.[0]?.delta?.content || '';
+  async function streamCompat(response, onChunk, format = 'openai') {
+    const reader = response.body.getReader(), decoder = new TextDecoder(); let full = '', buffer = '';
+    while (true) {
+      const { done, value } = await reader.read(); if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n'); buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (format === 'openai' && line.startsWith('data: ')) {
+          const data = line.slice(6); if (data === '[DONE]') continue;
+          try { const p = JSON.parse(data); const c = p.choices?.[0]?.delta?.content || ''; full += c; onChunk(c, full); } catch {}
         } else if (format === 'anthropic') {
-          if (p.type === 'content_block_delta') chunk = p.delta?.text || '';
-        } else if (format === 'gemini') {
-          chunk = p.candidates?.[0]?.content?.parts?.[0]?.text || p.content?.parts?.[0]?.text || '';
+          try { const p = JSON.parse(line); if (p.type === 'content_block_delta') { const c = p.delta?.text || ''; full += c; onChunk(c, full); } } catch {}
         }
-        if (chunk) {
-          chunkText += chunk;
-        }
-      } catch (e) {}
+      }
     }
-    return chunkText;
+    return full;
   }
 
   async function callAI(prompt, onChunk) {
@@ -110,48 +101,23 @@ TAF.Utils = (function() {
 
     const configs = {
       openai: { url: 'https://api.openai.com/v1/chat/completions', key: TAF.Settings.get('openaiApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }), format: 'openai' },
-      gemini: { url: () => `https://generativelanguage.googleapis.com/v1beta/models/${model}:${onChunk ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${TAF.Settings.get('geminiApiKey')}`, key: TAF.Settings.get('geminiApiKey'), headers: () => ({ 'Content-Type': 'application/json' }), body: () => ({ contents: [{ parts: [{ text: prompt }] }] }), format: 'gemini' },
+      gemini: { url: () => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${TAF.Settings.get('geminiApiKey')}`, key: TAF.Settings.get('geminiApiKey'), headers: () => ({ 'Content-Type': 'application/json' }), body: () => ({ contents: [{ parts: [{ text: prompt }] }] }), parse: (d) => d.candidates?.[0]?.content?.parts?.[0]?.text || '' },
       claude: { url: 'https://api.anthropic.com/v1/messages', key: TAF.Settings.get('claudeApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'x-api-key': k, 'anthropic-version': '2023-06-01' }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0.3, stream: !!onChunk }), format: 'anthropic' },
       github: { url: 'https://models.inference.ai.azure.com/chat/completions', key: TAF.Settings.get('githubToken'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }), format: 'openai' },
       groq: { url: 'https://api.groq.com/openai/v1/chat/completions', key: TAF.Settings.get('groqApiKey'), headers: (k) => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` }), body: (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.3, stream: !!onChunk }), format: 'openai' }
     };
-    
     const cfg = configs[provider];
-    if (!cfg || !cfg.key) { showToast(`${provider} API key not set`, 'error'); return null; }
-
-    return new Promise((resolve) => {
+    if (!cfg) { showToast(`Unknown provider: ${provider}`, 'error'); return null; }
+    if (!cfg.key) { showToast(`${provider} API key not set`, 'error'); return null; }
+    if (provider === 'claude' && typeof GM_xmlhttpRequest === 'undefined') { showToast('Claude requires GM_xmlhttpRequest', 'error'); return null; }
+    try {
       const url = typeof cfg.url === 'function' ? cfg.url() : cfg.url;
-      const body = JSON.stringify(cfg.body(model));
-      let lastIndex = 0;
-      let totalCaptured = '';
-      sseBuffer = ''; 
-
-      GM_xmlhttpRequest({
-        method: 'POST', url: url, headers: cfg.headers(cfg.key), data: body,
-        onprogress: (response) => {
-          if (!onChunk || !response.responseText) return;
-          const newPart = response.responseText.slice(lastIndex);
-          lastIndex = response.responseText.length;
-          const chunkText = parseSSE(newPart, onChunk, cfg.format);
-          totalCaptured += chunkText;
-          if (chunkText) onChunk(chunkText, totalCaptured);
-        },
-        onload: (response) => {
-          if (response.status >= 200 && response.status < 300) {
-            const finalPart = response.responseText.slice(lastIndex);
-            if (finalPart) {
-              totalCaptured += parseSSE(finalPart, null, cfg.format);
-            }
-            resolve(totalCaptured);
-          } else {
-            let errorMsg = 'API error';
-            try { const e = JSON.parse(response.responseText); errorMsg = e.error?.message || errorMsg; } catch {}
-            showToast(`AI error: ${errorMsg}`, 'error'); resolve(null);
-          }
-        },
-        onerror: () => { showToast('AI request failed (CORS/Network)', 'error'); resolve(null); }
-      });
-    });
+      const res = await fetch(url, { method: 'POST', headers: cfg.headers(cfg.key), body: JSON.stringify(cfg.body(model)) });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'API error'); }
+      if (provider === 'gemini') { const d = await res.json(); const t = cfg.parse(d); if (onChunk) onChunk(t, t); return t; }
+      if (onChunk) return await streamCompat(res, onChunk, cfg.format);
+      else { const d = await res.json(); return d.choices?.[0]?.message?.content || d.content?.[0]?.text || ''; }
+    } catch (err) { showToast(`AI error: ${err.message}`, 'error'); return null; }
   }
 
   return { sleep, escHtml, log, clearLog, setStatus, highlight, clearHighlights, setNativeValue, copyToClipboard, callAI, toast: showToast };
