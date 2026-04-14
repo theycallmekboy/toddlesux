@@ -25,3 +25,4 @@ A high-performance productivity suite for Toddle worksheets. This userscript str
 ## 👤 Author
 
 **theycallmekboy** — *Built for efficiency.*
+*AI was heavly used for this sorry*
