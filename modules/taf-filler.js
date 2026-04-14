@@ -1,5 +1,5 @@
 // modules/taf-filler.js
-// toddlesux - Fill logic with scoped dropdown, safe contenteditable, strict matching
+// toddlesux - Fill logic with stable DOM iteration and strict matching
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -29,19 +29,19 @@ TAF.Filler = (function() {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  // --- Strict matching (exact or token-based) ---
+  // --- Strict matching (exact or strict word boundary) ---
   function matchesAnswer(questionText, answerText) {
     if (!questionText || !answerText) return false;
     const q = questionText.trim().toLowerCase();
     const a = answerText.trim().toLowerCase();
+    
+    // Exact match is always preferred
     if (q === a) return true;
     
-    // Support single characters (like A, B, 1)
-    const qTokens = q.split(/\s+/).filter(t => t.length >= 1);
-    const aTokens = a.split(/\s+/).filter(t => t.length >= 1);
-    
-    if (qTokens.length && aTokens.length && qTokens.every(t => aTokens.includes(t))) return true;
-    return false;
+    // Strict word boundary check: answer must exist as a standalone phrase in the question text
+    const escapedA = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|\\s|[:.)])${escapedA}(?:$|\\s|[:.)])`, 'i');
+    return regex.test(q);
   }
 
   function waitForDropdownItems(block, timeout = 1000) {
@@ -114,24 +114,19 @@ TAF.Filler = (function() {
             highlight(match);
             log(`Dropdown → "${firstAns}"`, 'ok');
             anyFilled = true;
-          } else {
-            log(`Dropdown item not found for "${firstAns}"`, 'warn');
           }
         } else if (retries > 0) {
-          log(`Retrying dropdown...`, 'warn');
           await sleep(200);
           return fillBlock(block, answerArray, label, retries - 1);
         }
       }
     }
 
-    // 4. Text inputs (ALWAYS attempt, even if MC/Radio was filled, to support justification boxes)
+    // 4. Text inputs
     const textEls = [...block.querySelectorAll('input[type="text"], input[type="number"], input[type="email"], input:not([type]), textarea, [contenteditable="true"]')];
     if (textEls.length) {
       scrollToElement(block);
       let filledCount = 0;
-      // If we filled a radio/MC, we might want to use the SECOND part of the answer array for the text box
-      // e.g., Q1: Option A | Because it is correct
       const textStartIndex = anyFilled ? 1 : 0;
       
       for (let i = 0; i < textEls.length; i++) {
@@ -185,18 +180,15 @@ TAF.Filler = (function() {
   function findAnswer(answers, block, index) {
     const label = Scanner.getQuestionLabel(block).toLowerCase();
     
-    // 1. Extract question number from label (e.g., "1.1" -> "q1.1")
     const numMatch = label.match(/^(\d+(\.\d+)?)/);
     if (numMatch) {
       const qKey = "q" + numMatch[1];
       if (answers[qKey]) return answers[qKey];
     }
 
-    // 2. Exact qN key by index
     const key = `q${index+1}`;
     if (answers[key]) return answers[key];
     
-    // 3. Keyword/Phrase match (word boundary)
     for (const [k, v] of Object.entries(answers)) {
       if (/^q\d+(\.\d+)?$/.test(k)) continue;
       const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -215,6 +207,9 @@ TAF.Filler = (function() {
     abortController = new AbortController(); const signal = abortController.signal;
     TAF.__setFilling(true); isRunning = true;
 
+    // --- Invalidate cache before running ---
+    Scanner.invalidateCache();
+
     let start = rangeStart ?? Settings.get('fillRangeStart');
     let end = rangeEnd ?? Settings.get('fillRangeEnd');
     start = Math.max(1, parseInt(start) || 1);
@@ -227,19 +222,22 @@ TAF.Filler = (function() {
     const prog = document.getElementById('taf-progress-bar'), progTxt = document.getElementById('taf-progress-text');
 
     try {
-      const initialBlocks = Scanner.findQuestionBlocks();
-      const testIds = initialBlocks.map(b => b.getAttribute('data-test-id')).filter(id => id);
-      if (!testIds.length) { toast('No questions found', 'warn'); return; }
+      // --- Iterate directly over blocks, do not re-query by data-test-id ---
+      const blocks = Scanner.findQuestionBlocks();
+      if (!blocks.length) { toast('No questions found', 'warn'); return; }
 
-      const actualEnd = Math.min(end, testIds.length);
+      const actualEnd = Math.min(end, blocks.length);
       const rangeTotal = actualEnd - start + 1;
       if (rangeTotal <= 0) { toast('Invalid fill range', 'error'); return; }
 
       for (let i = start - 1; i < actualEnd; i++) {
         if (signal.aborted) break;
-        const testId = testIds[i];
-        const block = document.querySelector(`[data-test-id="${testId}"]`);
-        if (!block) { totalFailed++; continue; }
+        const block = blocks[i];
+        if (!block || !block.isConnected) {
+          log(`Question ${i+1} lost (DOM change)`, 'warn');
+          totalFailed++;
+          continue;
+        }
 
         const ans = findAnswer(answersMap, block, i);
         if (!ans?.length) { totalFailed++; continue; }
