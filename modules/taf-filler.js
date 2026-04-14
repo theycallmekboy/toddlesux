@@ -141,13 +141,24 @@ TAF.Filler = (function() {
   }
 
   function findAnswer(answers, block, index) {
-    const key = `q${index+1}`; if (answers[key]) return answers[key];
+    // 1. Exact qN key
+    const key = `q${index+1}`;
+    if (answers[key]) return answers[key];
+    
     const label = Scanner.getQuestionLabel(block).toLowerCase();
+    
+    // 2. Keyword match (whole word)
     for (const [k, v] of Object.entries(answers)) {
       if (/^q\d+(\.\d+)?$/.test(k)) continue;
-      // Strict: only match if the keyword is a whole word in the label
       if (label.split(/\s+/).includes(k)) return v;
     }
+    
+    // 3. Fallback: match answer key against the question label text
+    for (const [k, v] of Object.entries(answers)) {
+      if (/^q\d+(\.\d+)?$/.test(k)) continue;
+      if (label.includes(k)) return v;
+    }
+    
     return null;
   }
 
@@ -159,34 +170,46 @@ TAF.Filler = (function() {
 
     let start = rangeStart ?? Settings.get('fillRangeStart');
     let end = rangeEnd ?? Settings.get('fillRangeEnd');
-    // Validate range
     start = Math.max(1, parseInt(start) || 1);
     end = Math.max(start, parseInt(end) || 999);
 
     TAF.Utils.clearLog(); setStatus('RUNNING', true);
     const btn = document.getElementById('taf-btn-run'); if (btn) { btn.textContent = '⬛ Stop'; btn.classList.add('stop'); }
 
-    let totalDetected = 0, totalSuccessful = 0, totalFailed = 0;
+    let totalSuccessful = 0, totalFailed = 0;
     const prog = document.getElementById('taf-progress-bar'), progTxt = document.getElementById('taf-progress-text');
 
     try {
-      const blocks = Scanner.findQuestionBlocks(); totalDetected = blocks.length;
-      if (!blocks.length) { toast('No questions', 'warn'); return; }
+      // Get initial list of test IDs (stable across re-renders)
+      const initialBlocks = Scanner.findQuestionBlocks();
+      const testIds = initialBlocks.map(b => b.getAttribute('data-test-id')).filter(id => id);
+      if (!testIds.length) { toast('No questions found', 'warn'); return; }
 
-      const actualEnd = Math.min(end, blocks.length);
+      const actualEnd = Math.min(end, testIds.length);
       const rangeTotal = actualEnd - start + 1;
       if (rangeTotal <= 0) { toast('Invalid fill range', 'error'); return; }
       log(`Processing ${rangeTotal} questions (${start}-${actualEnd})`, 'info');
 
-      for (let i = start-1; i < actualEnd; i++) {
+      for (let i = start - 1; i < actualEnd; i++) {
         if (signal.aborted) break;
-        const ans = findAnswer(answersMap, blocks[i], i);
+        
+        // Re-query the block by its stable data-test-id
+        const testId = testIds[i];
+        const block = document.querySelector(`[data-test-id="${testId}"]`);
+        if (!block) {
+          log(`Question ${i+1} not found in DOM (maybe removed)`, 'warn');
+          totalFailed++;
+          continue;
+        }
+
+        const ans = findAnswer(answersMap, block, i);
         if (!ans?.length) { totalFailed++; continue; }
+
         if (prog) prog.style.width = `${((i - start + 1) / rangeTotal) * 100}%`;
         if (progTxt) progTxt.textContent = `${totalSuccessful}/${rangeTotal}`;
 
         await humanDelay(); if (signal.aborted) break;
-        const success = await fillBlock(blocks[i], ans, Scanner.getQuestionLabel(blocks[i]));
+        const success = await fillBlock(block, ans, Scanner.getQuestionLabel(block));
         if (success) totalSuccessful++; else totalFailed++;
       }
 
