@@ -1,5 +1,5 @@
 // modules/taf-ui.js
-// toddlesux - Complete UI with speed chips, progress bar, optional fill range, and fixes
+// toddlesux - Complete UI with speed chips, progress bar, optional fill range, and modal dragging fixes
 // Author: theycallmekboy - made with DS
 
 window.TAF = window.TAF || {};
@@ -295,7 +295,7 @@ TAF.UI = (function() {
           <div class="taf-section-label">Log</div>
           <div id="taf-log" style="display: ${showLogPanel ? 'block' : 'none'};"></div>
         </div>
-        <div id="taf-footer">toddlesux v6.1 · theycallmekboy & DS</div>
+        <div id="taf-footer">toddlesux v6.2 · theycallmekboy & DS</div>
       </div>
     `;
     document.body.appendChild(root);
@@ -617,47 +617,82 @@ TAF.UI = (function() {
       }
     });
 
-    // Modal dragging
-    const modalHeader = modal.querySelector('.taf-modal-header');
-    let isModalDragging = false, mStartX, mStartY, mStartLeft, mStartTop;
-    modalHeader.addEventListener('mousedown', (e) => {
-      if (e.target.closest('button')) return;
-      isModalDragging = true;
-      const rect = modal.getBoundingClientRect();
-      mStartX = e.clientX; mStartY = e.clientY;
-      mStartLeft = rect.left; mStartTop = rect.top;
-      modal.style.transition = 'none';
-      modal.style.position = 'fixed';
-      modal.style.left = mStartLeft + 'px';
-      modal.style.top = mStartTop + 'px';
-      modal.style.right = 'auto'; modal.style.bottom = 'auto'; modal.style.transform = 'none';
-      e.preventDefault();
-    });
-    window.addEventListener('mousemove', (e) => {
+    // ========== IMPROVED MODAL DRAGGING (on card, with cleanup & boundary) ==========
+    const modalCard = modal.querySelector('.taf-modal-content');
+    const modalHeaderDrag = modal.querySelector('.taf-modal-header');
+    
+    let isModalDragging = false;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    let modalCardRect = null;
+    
+    const onModalMouseMove = (e) => {
       if (!isModalDragging) return;
-      modal.style.left = (mStartLeft + e.clientX - mStartX) + 'px';
-      modal.style.top = (mStartTop + e.clientY - mStartY) + 'px';
+      e.preventDefault();
+      
+      const newLeft = e.clientX - dragOffsetX;
+      const newTop = e.clientY - dragOffsetY;
+      
+      const minX = 20 - modalCardRect.width;
+      const maxX = window.innerWidth - 20;
+      const minY = 20 - modalCardRect.height;
+      const maxY = window.innerHeight - 20;
+      
+      modalCard.style.left = Math.min(maxX, Math.max(minX, newLeft)) + 'px';
+      modalCard.style.top = Math.min(maxY, Math.max(minY, newTop)) + 'px';
+    };
+    
+    const onModalMouseUp = () => {
+      if (!isModalDragging) return;
+      isModalDragging = false;
+      modalCard.style.transition = '';
+      modalCard.style.cursor = '';
+      
+      window.removeEventListener('mousemove', onModalMouseMove);
+      window.removeEventListener('mouseup', onModalMouseUp);
+    };
+    
+    modalHeaderDrag.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button')) return;
+      
+      e.preventDefault();
+      isModalDragging = true;
+      
+      modalCardRect = modalCard.getBoundingClientRect();
+      
+      modalCard.style.position = 'fixed';
+      modalCard.style.left = modalCardRect.left + 'px';
+      modalCard.style.top = modalCardRect.top + 'px';
+      modalCard.style.right = 'auto';
+      modalCard.style.bottom = 'auto';
+      modalCard.style.margin = '0';
+      modalCard.style.transition = 'none';
+      modalCard.style.cursor = 'grabbing';
+      
+      dragOffsetX = e.clientX - modalCardRect.left;
+      dragOffsetY = e.clientY - modalCardRect.top;
+      
+      window.addEventListener('mousemove', onModalMouseMove);
+      window.addEventListener('mouseup', onModalMouseUp);
     });
-    window.addEventListener('mouseup', () => { isModalDragging = false; modal.style.transition = ''; });
-
-    // Modal resizing
-    const modalContent = modal.querySelector('.taf-modal-content');
-    const modalResizeHandle = document.createElement('div');
-    modalResizeHandle.className = 'taf-modal-resize-handle';
-    modalContent.appendChild(modalResizeHandle);
-    let isModalResizing = false, rStartX, rStartY, startW, startH;
-    modalResizeHandle.addEventListener('mousedown', (e) => {
-      isModalResizing = true;
-      rStartX = e.clientX; rStartY = e.clientY;
-      startW = modal.offsetWidth; startH = modal.offsetHeight;
-      e.preventDefault(); e.stopPropagation();
+    
+    const resetModalPosition = () => {
+      modalCard.style.position = '';
+      modalCard.style.left = '';
+      modalCard.style.top = '';
+      modalCard.style.right = '';
+      modalCard.style.bottom = '';
+      modalCard.style.margin = '';
+      modalCard.style.cursor = '';
+    };
+    
+    const modalObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mut) => {
+        if (mut.attributeName === 'class' && modal.classList.contains('hidden')) {
+          resetModalPosition();
+        }
+      });
     });
-    window.addEventListener('mousemove', (e) => {
-      if (!isModalResizing) return;
-      modal.style.width = Math.max(420, startW + e.clientX - rStartX) + 'px';
-      modal.style.height = Math.max(500, startH + e.clientY - rStartY) + 'px';
-    });
-    window.addEventListener('mouseup', () => { isModalResizing = false; });
+    modalObserver.observe(modal, { attributes: true });
 
     // Tab switching
     const tabBtns = modal.querySelectorAll('.taf-tab-btn');
@@ -764,10 +799,10 @@ TAF.UI = (function() {
       tutorial.id = 'taf-tutorial-overlay';
       tutorial.innerHTML = `
         <div class="taf-tutorial-card">
-          <h2>👋 Welcome to toddlesux v6.1</h2>
+          <h2>👋 Welcome to toddlesux v6.2</h2>
           <p>Auto‑fill Toddle forms with human‑like delays.<br>
           <strong>Drag</strong> header to move, <strong>resize</strong> from corner.<br>
-          Press <strong>${Settings.get('hotkey')}</strong> to hide/show.<br>
+          Press <strong>${Settings.get('hotkey')}</strong> to hide/show — double‑tap to reset position.<br>
           Use <strong>AI Assistant</strong> for ChatGPT, Gemini, Claude & more.<br>
           <strong>Ctrl+Enter</strong> to fill, <strong>Ctrl+Shift+F</strong> to scan.</p>
           <button class="taf-btn" id="taf-tutorial-skip">Skip</button>
