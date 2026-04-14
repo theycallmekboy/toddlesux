@@ -174,7 +174,8 @@ TAF.UI = (function() {
     }
 
     if (parsed.length === 0) {
-      return { ok: false, errors: errors.length ? errors : ['No valid pairs found'] };
+      toast('No valid Q&A pairs found. Use format "Q1: answer"', 'error');
+      return { ok: false, errors: ['No valid pairs'] };
     }
 
     entriesContainer.innerHTML = '';
@@ -302,8 +303,10 @@ TAF.UI = (function() {
             <button class="taf-btn" id="taf-btn-run">▶ Fill now</button>
           </div>
 
-          <div class="taf-section-label">Log</div>
-          <div id="taf-log" class="${showLogPanel ? 'visible' : ''}"></div>
+          <div id="taf-log-section" style="display: ${showLogPanel ? 'block' : 'none'};">
+            <div class="taf-section-label">Log</div>
+            <div id="taf-log" class="visible"></div>
+          </div>
         </div>
         <div id="taf-footer">toddlesux v6.3 · theycallmekboy & DS</div>
       </div>
@@ -326,8 +329,8 @@ TAF.UI = (function() {
     const btnAISend = root.querySelector('#taf-ai-send');
 
     btnAISend.addEventListener('click', async () => {
+      if (Filler.isFilling()) { toast('Fill in progress, please wait', 'warn'); return; }
       const questions = aiQuestions.value.trim();
-      if (!questions) { toast('Paste questions first', 'error'); return; }
 
       const provider = Settings.get('aiProvider');
       let hasKey = false;
@@ -705,8 +708,9 @@ TAF.UI = (function() {
 
     // Initialize answer rows
     Object.entries(PRESET_ANSWERS).forEach(([k, v]) => addAnswerRow(entries, k, v));
-    if (!Object.keys(PRESET_ANSWERS).length) { addAnswerRow(entries); addAnswerRow(entries); }
-
+    if (!Object.keys(PRESET_ANSWERS).length && entries.children.length === 0) {
+      addAnswerRow(entries);
+    }
     // Event listeners
     root.querySelector('#taf-btn-add').addEventListener('click', () => addAnswerRow(entries));
     root.querySelector('#taf-btn-run').addEventListener('click', () => {
@@ -762,7 +766,7 @@ TAF.UI = (function() {
 
       Settings.applyTheme();
       document.getElementById('taf-answer-section').style.display = Settings.get('showAnswerRows') ? 'block' : 'none';
-      document.getElementById('taf-log').classList.toggle('visible', Settings.get('showLogPanel'));
+      document.getElementById('taf-log-section').style.display = Settings.get('showLogPanel') ? 'block' : 'none';
       document.getElementById('taf-ai-section').style.display = Settings.get('showAISection') ? 'block' : 'none';
       document.getElementById('taf-fill-range-container').style.display = Settings.get('showFillRange') ? 'flex' : 'none';
       

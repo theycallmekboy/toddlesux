@@ -38,9 +38,19 @@
 
   document.addEventListener('keydown', (e) => {
     if (!window.TAF || !TAF.Settings) return;
-    if (isTyping()) return; // Rule 2: no hotkeys while typing
+    
+    // Don't trigger while user is typing
+    const active = document.activeElement;
+    const isTyping = active && (
+      active.tagName === 'INPUT' || 
+      active.tagName === 'TEXTAREA' || 
+      active.isContentEditable || 
+      active.getAttribute('role') === 'textbox'
+    );
+    if (isTyping) return;
 
     const hotkey = TAF.Settings.get('hotkey') || 'Delete';
+    
     if (e.key === hotkey) {
       e.preventDefault();
       const root = document.getElementById('taf-root');
