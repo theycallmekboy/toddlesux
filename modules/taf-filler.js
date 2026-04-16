@@ -166,9 +166,9 @@ TAF.Filler = (function() {
       const initialBlocks = Scanner.findQuestionBlocks();
       const questionRefs = initialBlocks.map((b, idx) => ({
         index: idx,
-        testId: b.getAttribute('data-test-id'),
-        label: Scanner.getQuestionLabel(b).slice(0, 40)
-      })).filter(ref => ref.testId);
+        testId: b.getAttribute('data-test-id') || null,
+        el: b
+      }));
 
       if (!questionRefs.length) { toast('No questions found', 'warn'); return; }
 
@@ -180,7 +180,9 @@ TAF.Filler = (function() {
       for (let i = start - 1; i < actualEnd; i++) {
         if (signal.aborted) break;
         const ref = questionRefs[i];
-        const block = document.querySelector(`[data-test-id="${ref.testId}"]`);
+        const block = ref.testId
+          ? document.querySelector(`[data-test-id="${ref.testId}"]`)
+          : Scanner.findQuestionBlocks()[ref.index] || null;
         if (!block) { log(`Q${i+1} not found in DOM`, 'warn'); totalFailed++; continue; }
 
         const ans = findAnswer(answersMap, block, i);
